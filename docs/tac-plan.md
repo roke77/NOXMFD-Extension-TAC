@@ -6,6 +6,10 @@ Planning. Scaffold only (an empty "COMING SOON" TAC page). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
 
+**This extension is an experiment.** It exists to try TAC with real players, gather feedback and
+refine it. If it proves useful, TAC may later be converted into a native NOXMFD feature — which is
+also why it stays fully separate from NOXMFD's own pages until then.
+
 - **Phase 1** — the whole command loop inside this extension. NOXMFD itself gains only new
   **extension API** surface (see [NOXMFD API additions](#noxmfd-api-additions-phase-1)), no new
   NOXMFD pages or features.
@@ -197,7 +201,8 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
 
 **Rule: this extension never adds anything to NOXMFD's own pages** (no buttons, panels or layers on
 MAP, TGT, TD, SQD, ...). Everything TAC does lives on its own EXT → TAC page; NOXMFD itself only
-gains generic extension API. So these ticket requirements are **out of scope**, not deferred: SEND
+gains generic extension API. So these ticket requirements are **out of scope for this extension**, not deferred (a native
+NOXMFD version, if the experiment validates TAC, would revisit them): SEND
 TO TAC on TGT (req 16), REPORT TO TAC on the squad side (req 17), assignments shown on TD/TGT
 (req 13), opening a target in TGT (req 19), and new MAP layers/labels/styling for TAC targets
 (reqs 24–27, 29). Assigning to individual pilots (req 12) is out too (decision 15).
