@@ -66,6 +66,16 @@ board, not a mission planner. Full requirements in the ticket.
 15. **TAC only deals with squad leaders.** No orders to, or data from, individual pilots or squad
     members: TAC assigns to squadrons, pulls from squadrons, and receives reports from squad
     leaders — the ticket's per-pilot assignment (req 12's `VIPER 2-1`) is out of scope.
+16. **A squadron is its callsign + flight** (`VIPER 2`), not its leader — two squads can share a
+    callsign, and a squad keeps its identity when leadership changes hands. **Assignments carry
+    over a handover**: when a different player's `hello` arrives for a squadron the officer already
+    knows, the officer's extension re-sends that squadron's assignments (with priority and ENGAGING
+    state) to the new leader. A squadron that disbands, or whose leader goes silent (startup step
+    5), has its assignments withdrawn — its rows fall back to UNASSIGNED if nobody else holds them.
+17. **PULL and REPORT offer enemy targets only** (for now). A leader's locks can include friendly or
+    neutral units; those aren't offered.
+18. **The officer's board is sorted by priority** (CRITICAL first), then by when the target was
+    added — matching the leader's assignment list.
 
 ## Phase 1 scope
 
@@ -150,7 +160,8 @@ board itself still starts empty and fills only from ADD, PULL and REPORT (decisi
 3. **`claim` repeats every few seconds.** Covers a leader who joins the match late, a player who
    creates a squad later, and a lost message; each new leader answers with its own `hello`.
 4. **Squad changes.** A leader sends a fresh `hello` when its squad changes (new callsign/flight,
-   disband, leadership passing on). A new leader starts sending `hello`; the old one stops.
+   disband, leadership passing on). A new leader starts sending `hello`; the old one stops — and
+   the officer re-sends the squadron's assignments to the new leader (decision 16).
 5. **Going stale.** A leader that stops answering `claim` drops out of the ASSIGN/PULL lists.
 6. **Release.** When the officer releases TAC, leaves, changes faction, or joins a squad, their
    extension sends `release`, and every leader clears its assignments list.
