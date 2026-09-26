@@ -35,8 +35,8 @@ board, not a mission planner. Full requirements in the ticket.
    explicitly (**RELEASE**), or automatically when the holder leaves, disconnects, changes
    faction, or joins/creates a squad.
 4. **Board sources:** targets **pulled** from a squadron, targets **reported** by a squad leader,
-   and targets the officer **adds manually** from their own faction's picture. Nothing is
-   auto-populated.
+   and targets the officer **adds** from their own current selection (picked on NOXMFD's MAP page).
+   Nothing is auto-populated.
 5. **Messages travel over NOXMFD's existing transport** (the Steam peer relay behind squads,
    `Squadron.cs`), exposed to extensions through new API — no second networking stack.
 6. **Assigning to a squadron sends it to the squad leader.** Redistributing within the squad
@@ -73,12 +73,19 @@ board, not a mission planner. Full requirements in the ticket.
   (`VIPER / ENGAGED`, `— / UNASSIGNED`). No distance (ticket req 4).
 - **OBSERVED/GHOST** comes from the officer's own faction picture — the same accuracy check
   NOXMFD's stale flag uses (`FactionHQ.IsTargetPositionAccurate`).
+- **Board-level actions** (header): **ADD ▼** and **PULL FROM SQUAD ▼** — both only put targets on
+  the board; assigning is a separate step.
+- **ADD ▼**: lists the officer's own current selection — the units they've selected by tapping
+  them on NOXMFD's MAP page (the same in-game target selection TGT shows), read straight from the
+  game. Tap a unit to add it, or **ADD ALL**. Units already on the board show as `on board ✓`
+  rather than being added twice. No long picker: the MAP is the picker.
+- **PULL FROM SQUAD ▼**: pick a squadron; its leader's extension replies with the leader's current
+  locks (decision 8), listed the same way — tap to add, or **ADD ALL**.
 - **Detail strip** on the selected row: SELECTED, STATUS, **PRIORITY** (LOW / NORMAL / HIGH /
-  CRITICAL), **ASSIGN ▼** (a squadron), **PULL FROM SQUAD ▼**, **LOCATE** (MAP
-  highlight via the existing `Api.SetSelectedUnit`/`SetSelectedUnitTrack`), **TARGETING** (select
-  it in the officer's own in-game targeting), **UNASSIGN** (withdraw one assignee) and **REMOVE**
-  (drop the row, withdrawing every assignment).
-- **ADD**: pick any enemy in the officer's faction picture onto the board.
+  CRITICAL), **ASSIGN ▼** (a squadron), **LOCATE** (MAP highlight via the existing
+  `Api.SetSelectedUnit`/`SetSelectedUnitTrack`), **TARGETING** (select it in the officer's own
+  in-game targeting), **UNASSIGN** (withdraw one assignee) and **REMOVE** (drop the row,
+  withdrawing every assignment).
 - Target identity is the game's `persistentID` everywhere (ticket reqs 15), so a target pulled
   twice, or reported by two leaders, is one row.
 
