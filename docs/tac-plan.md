@@ -21,9 +21,10 @@ board, not a mission planner. Full requirements in the ticket.
 
 ## Decisions
 
-1. **Everyone installs the extension.** The officer *and* the pilots run it. That lets phase 1
-   close the loop (assign → pilot sees it → pilot acknowledges) on this extension's own page,
-   without touching NOXMFD's TGT/TD/SQD pages.
+1. **The officer and the squad leaders install the extension.** That lets phase 1 close the loop
+   (assign → leader sees it → leader acknowledges) on this extension's own page, without touching
+   NOXMFD's TGT/TD/SQD pages. Squad members and squadless players can install it too, but TAC has
+   nothing to do with them (decision 15).
 2. **The officer is a pilot in a faction, and may fly.** Their board uses their own faction's
    picture (`FactionHQ`), read directly by this extension.
 3. **One TAC officer per faction, and they must NOT be in a squad.** Any player in the faction
@@ -32,31 +33,35 @@ board, not a mission planner. Full requirements in the ticket.
    the squads, not inside one. Nobody can apply while the role is held — for now there's no
    takeover; the holder has to release first. Everyone in the faction sees who holds it. Released explicitly
    (**RELEASE**), or automatically when the holder leaves, disconnects, or joins/creates a squad.
-4. **Board sources:** targets **pulled** from a squadron/pilot, targets **reported** by a pilot,
+4. **Board sources:** targets **pulled** from a squadron, targets **reported** by a squad leader,
    and targets the officer **adds manually** from their own faction's picture. Nothing is
    auto-populated.
 5. **Messages travel over NOXMFD's existing transport** (the Steam peer relay behind squads,
    `Squadron.cs`), exposed to extensions through new API — no second networking stack.
-6. **Assigning to a squadron sends it to the squad leader only.** Redistributing within the squad
+6. **Assigning to a squadron sends it to the squad leader.** Redistributing within the squad
    is the leader's call.
-7. **ENGAGED is manual.** An assignee presses **ENGAGING** on their TAC page; for a squadron
-   assignment that's the leader. Nothing about a pilot's locks is shared automatically.
-8. **PULL FROM SQUAD answers automatically.** The pilot's extension replies to the officer's
-   explicit request with its current lock list; the officer picks which to add. A one-off answer
-   to a request, not a continuous share.
+7. **ENGAGED is manual.** The squad leader presses **ENGAGING** on their TAC page. Nothing about a
+   leader's locks is shared automatically.
+8. **PULL FROM SQUAD answers automatically.** The leader's extension replies to the officer's
+   explicit request with the leader's current lock list; the officer picks which to add. A one-off
+   answer to a request, not a continuous share.
 9. **A target can have several assignees** (e.g. VIPER and COBRA on one SAM site). The row lists
    them; the target is ENGAGED once any of them has pressed ENGAGING.
 10. **Destroyed targets disappear.** No DESTROYED state (ticket req 8): the row, and every
     assignee's copy, is removed once the game drops the unit.
 11. **The board lives for the mission, in memory.** Cleared when the mission ends or the officer
-    releases/leaves the role; pilots' assignment lists clear with it.
+    releases/leaves the role; leaders' assignment lists clear with it.
 12. **Simultaneous claims: the earlier claim wins.** Each `claim` carries its claim time; a holder
     that sees an earlier claim from another player steps down.
 13. **Joining a squad loses TAC.** If the officer creates a squad, or accepts an invite into one,
     TAC is released (decision 3 applied strictly). Phase 1 can't stop the squad actions themselves —
     those are NOXMFD's own SQD features — so the extension reacts to the squad state instead.
 14. **Tested with a second player.** Everything interesting needs at least two NOXMFD clients in
-    one faction (officer + pilot), so phase 1 is verified in a real match with a second player.
+    one faction (officer + a squad leader), so phase 1 is verified in a real match with a second
+    player.
+15. **TAC only deals with squad leaders.** No orders to, or data from, individual pilots or squad
+    members: TAC assigns to squadrons, pulls from squadrons, and receives reports from squad
+    leaders — the ticket's per-pilot assignment (req 12's `VIPER 2-1`) is out of scope.
 
 ## Phase 1 scope
 
@@ -68,23 +73,28 @@ board, not a mission planner. Full requirements in the ticket.
 - **OBSERVED/GHOST** comes from the officer's own faction picture — the same accuracy check
   NOXMFD's stale flag uses (`FactionHQ.IsTargetPositionAccurate`).
 - **Detail strip** on the selected row: SELECTED, STATUS, **PRIORITY** (LOW / NORMAL / HIGH /
-  CRITICAL), **ASSIGN ▼** (a squadron or a pilot), **PULL FROM SQUAD ▼**, **LOCATE** (MAP
+  CRITICAL), **ASSIGN ▼** (a squadron), **PULL FROM SQUAD ▼**, **LOCATE** (MAP
   highlight via the existing `Api.SetSelectedUnit`/`SetSelectedUnitTrack`), **TARGETING** (select
   it in the officer's own in-game targeting), **UNASSIGN** (withdraw one assignee) and **REMOVE**
   (drop the row, withdrawing every assignment).
 - **ADD**: pick any enemy in the officer's faction picture onto the board.
 - Target identity is the game's `persistentID` everywhere (ticket reqs 15), so a target pulled
-  twice, or reported by two pilots, is one row.
+  twice, or reported by two leaders, is one row.
 
-### Pilot view (everyone else running the extension)
+### Squad leader view
 
-- **My assignments**: targets TAC assigned to me (or to my squad, if I lead it), with priority.
+- **My squad's assignments**: targets TAC assigned to my squadron, with priority.
 - **ENGAGING** toggle per assignment (decision 7).
 - **ACQUIRE**: select the assigned targets in-game in one press, like TD's AQUIRE — the extension
   calls the game directly.
 - **REPORT TO TAC**: send one of my currently locked targets to the officer's board.
-- Who holds TAC right now, and **APPLY FOR TAC** while nobody holds it — shown only to a player
-  who isn't in a squad (decision 3). The holder sees **RELEASE** instead.
+- Who holds TAC right now.
+
+### Everyone else (squad members, squadless players)
+
+- Who holds TAC right now.
+- **APPLY FOR TAC** while nobody holds it — only for a player who isn't in a squad (decision 3).
+  The holder sees **RELEASE** instead.
 
 ### Target status
 
@@ -99,15 +109,17 @@ extension and can't be mistaken for NOXMFD's own squad messages. Sketch:
 | Message | Direction | Meaning |
 |---|---|---|
 | `claim` / `release` | holder → faction | "I hold / no longer hold TAC." Re-announced periodically so late joiners learn the holder. |
-| `hello` | pilot → holder | "I run TAC": my designation, my squad, whether I lead it. Builds the officer's ASSIGN/PULL lists. |
+| `hello` | leader → holder | "I lead a squad and run TAC": my squad's callsign/flight and my designation. Builds the officer's ASSIGN/PULL lists. |
 | `assign` / `unassign` | holder → assignee | Target id, name, priority. |
 | `priority` | holder → assignees | Priority changed. |
 | `engaging` | assignee → holder | On/off for one assigned target. |
-| `pull` / `pull-reply` | holder → pilot → holder | Request for, and the pilot's current lock list. |
-| `report` | pilot → holder | One target to add to the board. |
+| `pull` / `pull-reply` | holder → leader → holder | Request for, and the leader's current lock list. |
+| `report` | leader → holder | One target to add to the board. |
 
 Trust follows the squad protocol's model: `assign`/`priority` accepted only from the current
-holder; `report`/`engaging`/`pull-reply` accepted only by the holder, only from faction peers.
+holder; `report`/`engaging`/`pull-reply` accepted only by the holder, only from a faction peer that
+announced itself as a squad leader (`hello`). That's self-reported — the officer has no way to see
+another squad's roster — which is acceptable for a same-faction coordination board.
 
 ## NOXMFD API additions (phase 1)
 
