@@ -25,8 +25,11 @@ board, not a mission planner. Full requirements in the ticket.
    (assign → leader sees it → leader acknowledges) on this extension's own page, without touching
    NOXMFD's TGT/TD/SQD pages. Squad members and squadless players can install it too, but TAC has
    nothing to do with them (decision 15).
-2. **The officer is a pilot in a faction, and may fly.** Their board uses their own faction's
-   picture (`FactionHQ`), read directly by this extension.
+2. **The officer is a pilot in a faction, spawned in an aircraft (parked is fine), and may fly.**
+   Their board uses their own faction's picture (`FactionHQ`), read directly by this extension.
+   ADD needs the aircraft: NOXMFD's MAP selection is a real in-game target selection, which the
+   game only allows with a local aircraft. PULL and REPORT work without one. A MAP pick mode that
+   works without an aircraft would be a NOXMFD feature — phase 2.
 3. **One TAC officer per faction, and they must NOT be in a squad.** Any player in the faction
    with the extension can press **APPLY FOR TAC** (EXT → TAC); for now that grants the role
    directly, with no approval step. A squad leader or squad member can't apply — TAC sits above
