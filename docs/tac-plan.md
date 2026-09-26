@@ -29,7 +29,8 @@ board, not a mission planner. Full requirements in the ticket.
 3. **One TAC officer per faction, and they must NOT be in a squad.** Any player in the faction
    with the extension can press **APPLY FOR TAC** (EXT → TAC); for now that grants the role
    directly, with no approval step. A squad leader or squad member can't apply — TAC sits above
-   the squads, not inside one. Everyone in the faction sees who holds it. Released explicitly
+   the squads, not inside one. Nobody can apply while the role is held — for now there's no
+   takeover; the holder has to release first. Everyone in the faction sees who holds it. Released explicitly
    (**RELEASE**), or automatically when the holder leaves, disconnects, or joins/creates a squad.
 4. **Board sources:** targets **pulled** from a squadron/pilot, targets **reported** by a pilot,
    and targets the officer **adds manually** from their own faction's picture. Nothing is
