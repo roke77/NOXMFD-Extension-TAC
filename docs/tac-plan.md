@@ -31,8 +31,9 @@ board, not a mission planner. Full requirements in the ticket.
    with the extension can press **APPLY FOR TAC** (EXT → TAC); for now that grants the role
    directly, with no approval step. A squad leader or squad member can't apply — TAC sits above
    the squads, not inside one. Nobody can apply while the role is held — for now there's no
-   takeover; the holder has to release first. Everyone in the faction sees who holds it. Released explicitly
-   (**RELEASE**), or automatically when the holder leaves, disconnects, or joins/creates a squad.
+   takeover; the holder has to release first. Everyone in the faction sees who holds it. Released
+   explicitly (**RELEASE**), or automatically when the holder leaves, disconnects, changes
+   faction, or joins/creates a squad.
 4. **Board sources:** targets **pulled** from a squadron, targets **reported** by a squad leader,
    and targets the officer **adds manually** from their own faction's picture. Nothing is
    auto-populated.
@@ -141,8 +142,12 @@ board itself still starts empty and fills only from ADD, PULL and REPORT (decisi
 4. **Squad changes.** A leader sends a fresh `hello` when its squad changes (new callsign/flight,
    disband, leadership passing on). A new leader starts sending `hello`; the old one stops.
 5. **Going stale.** A leader that stops answering `claim` drops out of the ASSIGN/PULL lists.
-6. **Release.** When the officer releases TAC, leaves, or joins a squad, their extension sends
-   `release`, and every leader clears its assignments list.
+6. **Release.** When the officer releases TAC, leaves, changes faction, or joins a squad, their
+   extension sends `release`, and every leader clears its assignments list.
+7. **Silent holder.** A crash or dropped connection never sends `release`, so every player treats
+   TAC as gone once it hears no `claim` for ~15 s: leaders clear their assignments, and APPLY FOR
+   TAC reappears for squadless players. A leader that changes faction likewise stops answering and
+   drops off the officer's lists (step 5).
 
 A squad whose leader doesn't run the extension never appears: NOXMFD's faction-wide presence beacon
 only says who runs NOXMFD, not who leads which squad.
@@ -154,8 +159,9 @@ game state it reads directly.
 
 1. **Who's out there** — own SteamID, plus the faction-mates currently running NOXMFD (name +
    SteamID). Built from what already exists: `PlayerRoster` and `Presence.HasNoxmfd`.
-2. **Squad state, read-only** — own role (none/leader/member), callsign, flight, own designation
-   (`VIPER 2-1`), leader, members with their slots. The same data `/squad` already serves.
+2. **Squad state, read-only** — own role (none/leader/member), callsign, flight and own designation
+   (`VIPER 2-1`). A subset of what `/squad` already serves; nothing about other members is needed,
+   since TAC only deals with leaders.
 3. **Per-extension messaging** — send a small text payload to one peer, and register a handler for
    payloads addressed to this extension. NOXMFD prefixes the wire type with the extension id, so an
    extension can't forge or intercept NOXMFD's own `sqd.*` messages; same size cap and envelope
