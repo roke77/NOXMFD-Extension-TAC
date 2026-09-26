@@ -121,6 +121,26 @@ holder; `report`/`engaging`/`pull-reply` accepted only by the holder, only from 
 announced itself as a squad leader (`hello`). That's self-reported — the officer has no way to see
 another squad's roster — which is acceptable for a same-faction coordination board.
 
+### Startup and roster
+
+How the officer learns which squadrons exist (the ASSIGN ▼ / PULL FROM SQUAD ▼ lists). The target
+board itself still starts empty and fills only from ADD, PULL and REPORT (decision 4).
+
+1. **A player takes TAC.** Their extension sends `claim` (with the claim time) to every faction-mate
+   running NOXMFD.
+2. **Leaders answer.** Every squad leader running the extension replies with `hello` (callsign,
+   flight, designation). The officer's ASSIGN/PULL lists fill from these within a second or two.
+3. **`claim` repeats every few seconds.** Covers a leader who joins the match late, a player who
+   creates a squad later, and a lost message; each new leader answers with its own `hello`.
+4. **Squad changes.** A leader sends a fresh `hello` when its squad changes (new callsign/flight,
+   disband, leadership passing on). A new leader starts sending `hello`; the old one stops.
+5. **Going stale.** A leader that stops answering `claim` drops out of the ASSIGN/PULL lists.
+6. **Release.** When the officer releases TAC, leaves, or joins a squad, their extension sends
+   `release`, and every leader clears its assignments list.
+
+A squad whose leader doesn't run the extension never appears: NOXMFD's faction-wide presence beacon
+only says who runs NOXMFD, not who leads which squad.
+
 ## NOXMFD API additions (phase 1)
 
 The only change phase 1 makes to NOXMFD. Everything else above is this extension's own code, or
