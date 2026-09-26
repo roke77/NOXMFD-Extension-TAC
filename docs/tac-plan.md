@@ -26,9 +26,11 @@ board, not a mission planner. Full requirements in the ticket.
    without touching NOXMFD's TGT/TD/SQD pages.
 2. **The officer is a pilot in a faction, and may fly.** Their board uses their own faction's
    picture (`FactionHQ`), read directly by this extension.
-3. **One TAC officer per faction, and they must be a squad leader.** Claimed from the TAC page;
-   everyone in the faction sees who holds it. Released explicitly, or automatically when the holder
-   leaves, disconnects, or stops leading a squad.
+3. **One TAC officer per faction, and they must NOT be in a squad.** Any player in the faction
+   with the extension can press **APPLY FOR TAC** (EXT → TAC); for now that grants the role
+   directly, with no approval step. A squad leader or squad member can't apply — TAC sits above
+   the squads, not inside one. Everyone in the faction sees who holds it. Released explicitly
+   (**RELEASE**), or automatically when the holder leaves, disconnects, or joins/creates a squad.
 4. **Board sources:** targets **pulled** from a squadron/pilot, targets **reported** by a pilot,
    and targets the officer **adds manually** from their own faction's picture. Nothing is
    auto-populated.
@@ -48,9 +50,10 @@ board, not a mission planner. Full requirements in the ticket.
 11. **The board lives for the mission, in memory.** Cleared when the mission ends or the officer
     releases/leaves the role; pilots' assignment lists clear with it.
 12. **Simultaneous claims: the earlier claim wins.** Each `claim` carries its claim time; a holder
-    that sees an earlier claim from another leader steps down.
-13. **Losing squad leadership loses TAC.** If the officer's leadership passes to someone else
-    mid-mission, TAC is released (decision 3 applied strictly).
+    that sees an earlier claim from another player steps down.
+13. **Joining a squad loses TAC.** If the officer creates a squad, or accepts an invite into one,
+    TAC is released (decision 3 applied strictly). Phase 1 can't stop the squad actions themselves —
+    those are NOXMFD's own SQD features — so the extension reacts to the squad state instead.
 14. **Tested with a second player.** Everything interesting needs at least two NOXMFD clients in
     one faction (officer + pilot), so phase 1 is verified in a real match with a second player.
 
@@ -79,7 +82,8 @@ board, not a mission planner. Full requirements in the ticket.
 - **ACQUIRE**: select the assigned targets in-game in one press, like TD's AQUIRE — the extension
   calls the game directly.
 - **REPORT TO TAC**: send one of my currently locked targets to the officer's board.
-- Who holds TAC right now; a squad leader also sees **TAKE TAC** / **RELEASE**.
+- Who holds TAC right now, and **APPLY FOR TAC** while nobody holds it — shown only to a player
+  who isn't in a squad (decision 3). The holder sees **RELEASE** instead.
 
 ### Target status
 
