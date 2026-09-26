@@ -195,6 +195,11 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
 
 ## Phase 2 (deferred)
 
-Everything the ticket asks of NOXMFD's own pages — e.g. SEND TO TAC on TGT (req 16), assignments
-showing the way a TD designation does (req 13), REPORT TO TAC from the squad side (req 17) — and
-anything else not listed in phase 1. Not planned until phase 1 works.
+**Rule: this extension never adds anything to NOXMFD's own pages** (no buttons, panels or layers on
+MAP, TGT, TD, SQD, ...). Everything TAC does lives on its own EXT → TAC page; NOXMFD itself only
+gains generic extension API. So these ticket requirements are **out of scope**, not deferred: SEND
+TO TAC on TGT (req 16), REPORT TO TAC on the squad side (req 17), assignments shown on TD/TGT
+(req 13), opening a target in TGT (req 19), and new MAP layers/labels/styling for TAC targets
+(reqs 24–27, 29). Assigning to individual pilots (req 12) is out too (decision 15).
+
+Phase 2 is whatever's left after phase 1 works — not planned yet.
