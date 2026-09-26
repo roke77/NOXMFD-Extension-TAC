@@ -83,12 +83,18 @@ board, not a mission planner. Full requirements in the ticket.
 
 ### Squad leader view
 
-- **My squad's assignments**: targets TAC assigned to my squadron, with priority.
-- **ENGAGING** toggle per assignment (decision 7).
-- **ACQUIRE**: select the assigned targets in-game in one press, like TD's AQUIRE — the extension
-  calls the game directly.
-- **REPORT TO TAC**: send one of my currently locked targets to the officer's board.
-- Who holds TAC right now.
+- **Header**: who holds TAC (the holder's player name), or `TAC: — NONE —` with a short "no TAC
+  officer in your faction" note. A leader never sees APPLY FOR TAC (decision 3).
+- **My squad's assignments** (only while someone holds TAC): each target TAC assigned to my
+  squadron, with the priority TAC set, sorted by priority (CRITICAL first). Updates live as TAC
+  assigns, reprioritises, unassigns or removes; a destroyed target disappears.
+- **ENGAGING** toggle per assignment (decision 7) — pressing it again turns the officer's row back
+  to ASSIGNED.
+- **ACQUIRE** per row, plus **ACQUIRE ALL**: select the assigned targets in the leader's own
+  in-game targeting, like TD's AQUIRE — the extension calls the game directly.
+- **REPORT TO TAC**: the leader's current locks; pick one to send it to the officer's board.
+- A brief "TAC pulled your targets" note when a PULL is answered (decision 8), since that reply
+  goes out without a press.
 
 ### Everyone else (squad members, squadless players)
 
