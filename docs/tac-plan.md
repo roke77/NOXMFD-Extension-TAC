@@ -82,9 +82,9 @@ board, not a mission planner. Full requirements in the ticket.
 ### Officer view (the holder of the TAC role)
 
 - **Target board**: every target on the board, header count (`12 TARGETS`); each row shows the
-  target, **OBSERVED/GHOST**, **priority**, and the assignees with their state
+  target, **OBSERVED/STALE**, **priority**, and the assignees with their state
   (`VIPER / ENGAGED`, `— / UNASSIGNED`). No distance (ticket req 4).
-- **OBSERVED/GHOST** comes from the officer's own faction picture — the same accuracy check
+- **OBSERVED/STALE** comes from the officer's own faction picture — the same accuracy check
   NOXMFD's stale flag uses (`FactionHQ.IsTargetPositionAccurate`).
 - **Board-level actions** (header): **ADD ▼** and **PULL FROM SQUAD ▼** — both only put targets on
   the board; assigning is a separate step.
@@ -126,7 +126,7 @@ board, not a mission planner. Full requirements in the ticket.
 ### Target status
 
 UNASSIGNED → ASSIGNED (sent, nobody has pressed ENGAGING) → ENGAGED (ticket reqs 6–9). Observation
-(OBSERVED ↔ GHOST) changes independently.
+(OBSERVED ↔ STALE) changes independently.
 
 ### Messages (extension-level protocol)
 
