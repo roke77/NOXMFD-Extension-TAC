@@ -47,6 +47,12 @@ board, not a mission planner. Full requirements in the ticket.
     assignee's copy, is removed once the game drops the unit.
 11. **The board lives for the mission, in memory.** Cleared when the mission ends or the officer
     releases/leaves the role; pilots' assignment lists clear with it.
+12. **Simultaneous claims: the earlier claim wins.** Each `claim` carries its claim time; a holder
+    that sees an earlier claim from another leader steps down.
+13. **Losing squad leadership loses TAC.** If the officer's leadership passes to someone else
+    mid-mission, TAC is released (decision 3 applied strictly).
+14. **Tested with a second player.** Everything interesting needs at least two NOXMFD clients in
+    one faction (officer + pilot), so phase 1 is verified in a real match with a second player.
 
 ## Phase 1 scope
 
@@ -122,12 +128,3 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
 Everything the ticket asks of NOXMFD's own pages — e.g. SEND TO TAC on TGT (req 16), assignments
 showing the way a TD designation does (req 13), REPORT TO TAC from the squad side (req 17) — and
 anything else not listed in phase 1. Not planned until phase 1 works.
-
-## Open questions
-
-- **Testing.** Everything interesting needs at least two NOXMFD clients in one faction (officer +
-  pilot). Which setup — the `NOXMFD-isolated` / `NOXMFD-isolated-game` copies, or a second player?
-- **Holder conflicts.** Two squad leaders pressing TAKE TAC at the same moment: simplest rule is
-  the earlier claim timestamp wins, re-checked on every `claim` announcement.
-- **Leader handover.** If the officer's squad leadership passes to someone else mid-mission,
-  decision 3 releases TAC — confirm that's wanted rather than letting them keep it.
