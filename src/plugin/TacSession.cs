@@ -24,7 +24,7 @@ namespace TacModule
         private const float TickSeconds = 0.25f;
         private const float GoneCheckSeconds = 1f;
 
-        // Officer: each pulled squadron's reply, until the next pull of that squadron.
+        // Officer: the latest PULL reply, keyed by its squadron.
         private static readonly Dictionary<string, TacLeader.Task[]> _pulls = new Dictionary<string, TacLeader.Task[]>(StringComparer.Ordinal);
         private static float _nextGoneCheck;
 
@@ -32,6 +32,7 @@ namespace TacModule
         private static readonly TacRoster _roster = new TacRoster();
         private static readonly Dictionary<string, string> _sentTasks = new Dictionary<string, string>(StringComparer.Ordinal);
         private static readonly List<string> _dropped = new List<string>();
+        private static readonly HashSet<ulong> _badSenders = new HashSet<ulong>();
         private static float _nextTick;
         private static int _noteSeq;
         private static string _note = "";
@@ -145,7 +146,12 @@ namespace TacModule
         {
             Message? m;
             try { m = JsonUtility.FromJson<Message>(payload); }
-            catch { return; }
+            catch (Exception ex)
+            {
+                // Once per sender: another player's broken or newer client must not flood the log.
+                if (_badSenders.Add(from)) Plugin.Log?.LogWarning($"[TAC] unreadable message from {from}: {ex.Message}");
+                return;
+            }
             if (m == null) return;
             FactionPilot? sender = FindPilot(from);
             if (sender == null) return;
@@ -202,6 +208,9 @@ namespace TacModule
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
                     if (squadron == null) return;
+                    // Only the latest reply is kept: the slice rides every telemetry frame, and the
+                    // page shows one PULL at a time (each PULL press asks afresh).
+                    _pulls.Clear();
                     _pulls[squadron] = m.l ?? Array.Empty<TacLeader.Task>();
                     break;
                 }
@@ -308,9 +317,7 @@ namespace TacModule
                     for (int i = 0; i < kv.Value.Length; i++)
                     {
                         if (i > 0) sb.Append(',');
-                        sb.Append("{\"id\":").Append(kv.Value[i].id).Append(",\"n\":");
-                        TacJson.AppendString(sb, kv.Value[i].n);
-                        sb.Append('}');
+                        TacJson.AppendTarget(sb, kv.Value[i].id, kv.Value[i].n).Append('}');
                     }
                     sb.Append(']');
                 }

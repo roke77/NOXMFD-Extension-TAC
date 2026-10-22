@@ -74,7 +74,7 @@ namespace TacModule
                     break;
                 case "assign":
                 {
-                    string sq = Clip(c.sq, MaxSquadronLength);
+                    string sq = TacJson.Clip(c.sq, MaxSquadronLength);
                     if (e == null || sq.Length == 0 || e.Assignees.Exists(a => a.Squadron == sq)) return;
                     e.Assignees.Add(new Assignee { Squadron = sq });
                     break;
@@ -101,7 +101,7 @@ namespace TacModule
         internal static bool Add(uint id, string? name)
         {
             if (id == 0 || Find(id) != null) return false;
-            _board.Add(new Entry { Id = id, Name = Clip(name, MaxNameLength), Seq = ++_seq });
+            _board.Add(new Entry { Id = id, Name = TacJson.Clip(name, MaxNameLength), Seq = ++_seq });
             return true;
         }
 
@@ -145,21 +145,14 @@ namespace TacModule
             {
                 Entry e = mine[i];
                 if (i > 0) sb.Append(',');
-                sb.Append("{\"id\":").Append(e.Id.ToString(CultureInfo.InvariantCulture)).Append(",\"n\":");
-                TacJson.AppendString(sb, Clip(e.Name, MaxSentName));
-                sb.Append(",\"p\":").Append(e.Priority)
+                TacJson.AppendTarget(sb, e.Id, TacJson.Clip(e.Name, MaxSentName))
+                  .Append(",\"p\":").Append(e.Priority)
                   .Append(",\"e\":").Append(e.Assignees.Find(a => a.Squadron == squadron)!.Engaged ? 1 : 0).Append('}');
             }
             return sb.Append("]}").ToString();
         }
 
         private static Entry? Find(uint id) => _board.Find(e => e.Id == id);
-
-        private static string Clip(string? s, int max)
-        {
-            s = (s ?? "").Trim();
-            return s.Length <= max ? s : s.Substring(0, max);
-        }
 
         // The board's part of the slice TacSession publishes; "sq" is the squadron roster (the
         // matrix columns).
@@ -170,9 +163,8 @@ namespace TacModule
             {
                 Entry e = _board[i];
                 if (i > 0) sb.Append(',');
-                sb.Append("{\"id\":").Append(e.Id.ToString(CultureInfo.InvariantCulture))
-                  .Append(",\"n\":"); TacJson.AppendString(sb, e.Name);
-                sb.Append(",\"p\":").Append(e.Priority)
+                TacJson.AppendTarget(sb, e.Id, e.Name)
+                  .Append(",\"p\":").Append(e.Priority)
                   .Append(",\"s\":").Append(e.Seq)
                   .Append(",\"a\":[");
                 for (int j = 0; j < e.Assignees.Count; j++)

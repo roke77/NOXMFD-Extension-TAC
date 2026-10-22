@@ -75,12 +75,19 @@ html, body {
   scrollbar-gutter: stable;
   isolation: isolate;
   border-top: 1px solid var(--no-green-dark);
+}
+
+/* Every scrolling list here: NOXMFD's thin grey thumb on a transparent track (tgt.css, td.css). */
+.tac-matrix, .tac-pop-list, .tac-lead-list, .tac-report-list {
   scrollbar-width: thin;
   scrollbar-color: var(--no-gray) transparent;
 }
-.tac-matrix::-webkit-scrollbar { width: 6px; height: 6px; }
-.tac-matrix::-webkit-scrollbar-track { background: transparent; }
-.tac-matrix::-webkit-scrollbar-thumb { background: var(--no-gray); border-radius: 3px; }
+.tac-matrix::-webkit-scrollbar, .tac-pop-list::-webkit-scrollbar,
+.tac-lead-list::-webkit-scrollbar, .tac-report-list::-webkit-scrollbar { width: 6px; height: 6px; }
+.tac-matrix::-webkit-scrollbar-track, .tac-pop-list::-webkit-scrollbar-track,
+.tac-lead-list::-webkit-scrollbar-track, .tac-report-list::-webkit-scrollbar-track { background: transparent; }
+.tac-matrix::-webkit-scrollbar-thumb, .tac-pop-list::-webkit-scrollbar-thumb,
+.tac-lead-list::-webkit-scrollbar-thumb, .tac-report-list::-webkit-scrollbar-thumb { background: var(--no-gray); border-radius: 3px; }
 
 .tac-mhead, .tac-row {
   display: flex; gap: 8px;
@@ -235,12 +242,7 @@ html, body {
 .tac-pop-list {
   min-height: 0; overflow-y: auto;
   border-top: 1px solid var(--no-green-dark);
-  scrollbar-width: thin;
-  scrollbar-color: var(--no-gray) transparent;
 }
-.tac-pop-list::-webkit-scrollbar { width: 6px; }
-.tac-pop-list::-webkit-scrollbar-track { background: transparent; }
-.tac-pop-list::-webkit-scrollbar-thumb { background: var(--no-gray); border-radius: 3px; }
 .tac-pop-item {
   display: flex; align-items: center; gap: 12px;
   min-height: clamp(42px, 7vmin, 54px); padding: 0 6px;
@@ -302,14 +304,8 @@ html, body {
   padding: clamp(6px, 1.8vmin, 16px) clamp(34px, 5vw, 48px) clamp(10px, 2.4vmin, 22px);
 }
 .tac-lead-sq { font-size: clamp(13px, 2.4vmin, 20px); letter-spacing: 0.1em; color: var(--no-squad); white-space: nowrap; }
-.tac-lead-list, .tac-report-list {
-  min-height: 0; overflow-y: auto;
-  scrollbar-width: thin; scrollbar-color: var(--no-gray) transparent;
-}
+.tac-lead-list, .tac-report-list { min-height: 0; overflow-y: auto; }
 .tac-lead-list { flex: 1 1 55%; border-top: 1px solid var(--no-green-dark); }
-.tac-lead-list::-webkit-scrollbar, .tac-report-list::-webkit-scrollbar { width: 6px; }
-.tac-lead-list::-webkit-scrollbar-track, .tac-report-list::-webkit-scrollbar-track { background: transparent; }
-.tac-lead-list::-webkit-scrollbar-thumb, .tac-report-list::-webkit-scrollbar-thumb { background: var(--no-gray); border-radius: 3px; }
 .tac-lead-head, .tac-lead-row {
   display: grid; grid-template-columns: minmax(0, 1fr) clamp(90px, 13vw, 130px) clamp(120px, 17vw, 170px) clamp(100px, 15vw, 150px);
   gap: 12px; align-items: center; padding: 0 12px;

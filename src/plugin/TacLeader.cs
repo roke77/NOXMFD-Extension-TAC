@@ -96,9 +96,9 @@ namespace TacModule
                     List<TacGame.Lock> locks = TacGame.LockedEnemies();
                     int i = locks.FindIndex(l => l.Id == c.id);
                     if (i < 0) return;
-                    var sb = new StringBuilder("{\"t\":\"report\",\"id\":").Append(Id(c.id)).Append(",\"n\":");
-                    TacJson.AppendString(sb, Clip(locks[i].Name));
-                    Api.SendMessage(Plugin.ExtId, holder, sb.Append('}').ToString());
+                    // A target object with the message type added: {"id":..,"n":"..","t":"report"}.
+                    var sb = TacJson.AppendTarget(new StringBuilder(), c.id, TacJson.Clip(locks[i].Name, MaxSentName));
+                    Api.SendMessage(Plugin.ExtId, holder, sb.Append(",\"t\":\"report\"}").ToString());
                     break;
                 }
                 default:
@@ -116,17 +116,14 @@ namespace TacModule
             for (int i = 0; i < locks.Count && i < MaxLocks; i++)
             {
                 if (i > 0) sb.Append(',');
-                sb.Append("{\"id\":").Append(Id(locks[i].Id)).Append(",\"n\":");
-                TacJson.AppendString(sb, Clip(locks[i].Name));
-                sb.Append('}');
+                TacJson.AppendTarget(sb, locks[i].Id, TacJson.Clip(locks[i].Name, MaxSentName)).Append('}');
             }
             return sb.Append("]}").ToString();
         }
 
         private static string Id(uint id) => id.ToString(CultureInfo.InvariantCulture);
 
-        // Names travel in messages capped at 4096 bytes: long ones are cut.
-        private static string Clip(string s) => s.Length > 40 ? s.Substring(0, 40) : s;
+        private const int MaxSentName = 40;
 
         // The leader's part of the slice: its squadron and assignments, in the officer's order.
         internal static void AppendJson(StringBuilder sb)
@@ -138,9 +135,7 @@ namespace TacModule
             {
                 Task t = _tasks[i];
                 if (i > 0) sb.Append(',');
-                sb.Append("{\"id\":").Append(t.id.ToString(CultureInfo.InvariantCulture)).Append(",\"n\":");
-                TacJson.AppendString(sb, t.n);
-                sb.Append(",\"p\":").Append(t.p).Append(",\"e\":").Append(t.e).Append('}');
+                TacJson.AppendTarget(sb, t.id, t.n).Append(",\"p\":").Append(t.p).Append(",\"e\":").Append(t.e).Append('}');
             }
             sb.Append("]}");
         }
