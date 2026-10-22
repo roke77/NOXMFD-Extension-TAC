@@ -53,7 +53,8 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
 - `tools/tests/` — xUnit tests for the pure C# (`dotnet test tools/tests`), compiled straight from
   `src/plugin/` like NOXMFD's own `tools/tests`.
 - `docs/` — planning doc (design decisions, phase-1 scope, message protocol, the NOXMFD API it
-  needs) — see [`tac-plan.md`](docs/tac-plan.md).
+  needs) — see [`tac-plan.md`](docs/tac-plan.md) — and the two-player match test,
+  [`two-player-test.md`](docs/two-player-test.md).
 - `lib/NOXMFD.dll` — compile-time reference only, not shipped to players (NOXMFD is already
   installed as its own plugin; `Private=false` in the `.csproj` keeps this project from bundling a
   second copy). Committed to this repo since it's this project's own dependency.

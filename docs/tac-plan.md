@@ -239,7 +239,7 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
    preview: claim/release, `hello` and the squadron roster, assign/unassign/priority delivery,
    ENGAGING, PULL and REPORT, the squad leader and everyone-else views, destroyed-target removal.
    Built and checked in the preview; needs step 4.
-4. **Two-player test** in a real match (decision 14), covering this extension and NOXMFD's API 8
+4. **Two-player test** in a real match (decision 14, [`two-player-test.md`](two-player-test.md)), covering this extension and NOXMFD's API 8
    together. NOXMFD's API branch ships in a NOXMFD release only after it passes; this extension's
    release follows, pinned to that NOXMFD version.
 

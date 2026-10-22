@@ -29,7 +29,10 @@ namespace TacModule
             return result;
         }
 
-        // Destroyed, or otherwise no longer a live unit — the same test target.select applies.
+        // Destroyed, or otherwise no longer a live unit — the same test target.select applies. Safe
+        // as a "destroyed" signal because every client holds every networked unit until it dies: the
+        // game adds no Mirage NetworkVisibility culling, so a failed lookup never means "far away".
+        // Re-check this if a game update adds interest management.
         internal static bool IsGone(uint id) =>
             !UnitRegistry.TryGetUnit(new PersistentID { Id = id }, out Unit u) || u == null || u.disabled;
 
