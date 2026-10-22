@@ -6,7 +6,9 @@ Serves /ext/tac/* from this repo's src/web, /assets/shared|services/* from a NOX
 (default: a sibling ../NOXMFD), and a mock /stream of enemy contacts with an ext.tac board slice.
 POST /ext/tac/command applies add/remove/priority/assign/unassign to that board the way TacBoard.cs
 does, and answers a pull from mock squad leaders; GET /commands lists what was received.
-GET /scenario?s=board|empty|nosq|nomission switches what the stream sends.
+GET /scenario?s=board|empty|nosq|nomission&role=mine|free|taken|leader-free|leader-taken|member
+switches what the stream sends (&note=<text> raises a notice, &reset=1 reseeds the board); apply and
+release move the role between free and mine.
 """
 import json, sys, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -39,17 +41,34 @@ def seed():
             for n, (i, p, a) in enumerate(rows)]
 
 
-state = {"s": "board"}
+# role: mine (this player holds TAC), free (nobody does, may apply), taken (MAVERICK holds it),
+# leader-free / leader-taken (a squad leader's view), member (a squad member, role free).
+ROLES = {
+    "mine": {"mine": 1, "h": "YOU", "can": 0, "sr": 0},
+    "free": {"mine": 0, "h": "", "can": 1, "sr": 0},
+    "taken": {"mine": 0, "h": "MAVERICK", "can": 0, "sr": 0},
+    "leader-free": {"mine": 0, "h": "", "can": 0, "sr": 1},
+    "leader-taken": {"mine": 0, "h": "MAVERICK", "can": 0, "sr": 1},
+    "member": {"mine": 0, "h": "", "can": 0, "sr": 2},
+}
+state = {"s": "board", "role": "mine"}
 board = seed()
 pulls = {}
+note = {"s": 0, "t": ""}
 commands = []
 lock = threading.Lock()
 
 
 def slice_():
+    common = {"r": ROLES.get(state["role"], ROLES["mine"]), "note": note}
     if state["s"] == "empty":
-        return {"board": [], "sq": SQUADRONS}
-    return {"board": board, "sq": [] if state["s"] == "nosq" else SQUADRONS, "pull": pulls}
+        return {**common, "board": [], "sq": SQUADRONS}
+    return {**common, "board": board, "sq": [] if state["s"] == "nosq" else SQUADRONS, "pull": pulls}
+
+
+def notice(text):
+    note["s"] += 1
+    note["t"] = text
 
 
 def frame():
@@ -61,7 +80,21 @@ def frame():
 
 
 def apply(c):
+    global board
     cmd, uid = c.get("cmd"), c.get("id", 0)
+    # The role, as TacSession.cs handles it: APPLY only while free; RELEASE empties the board.
+    if cmd == "apply":
+        if state["role"] == "free":
+            state["role"] = "mine"
+        return
+    if cmd == "release":
+        if state["role"] == "mine":
+            state["role"] = "free"
+            board = []
+            pulls.clear()
+        return
+    if state["role"] != "mine":
+        return
     e = next((x for x in board if x["id"] == uid), None)
     if cmd == "add" and uid and not e:
         board.append({"id": uid, "n": c.get("name", ""), "p": 1, "s": max([x["s"] for x in board] + [0]) + 1, "a": []})
@@ -118,6 +151,9 @@ class H(BaseHTTPRequestHandler):
             q = parse_qs(u.query)
             with lock:
                 state["s"] = q.get("s", [state["s"]])[0]
+                state["role"] = q.get("role", [state["role"]])[0]
+                if "note" in q:
+                    notice(q["note"][0])
                 if q.get("reset", ["0"])[0] == "1":
                     board = seed(); pulls.clear()
             return self._json(state)

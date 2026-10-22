@@ -22,6 +22,13 @@ const popTitleEl = $('pop-title');
 const popSubEl = $('pop-sub');
 const popListEl = $('pop-list');
 const popAllBtn = $('pop-all');
+const holderEl = $('holder');
+const otherLampEl = $('other-lamp');
+const otherMsgEl = $('other-msg');
+const otherSubEl = $('other-sub');
+const otherNoteEl = $('other-note');
+const applyBtn = $('apply-btn');
+const releaseBtn = $('release-btn');
 
 let board = [];            // the slice's board, sorted for display
 let squadrons = [];        // the slice's roster: callsign + flight of each leader running TAC
@@ -37,6 +44,9 @@ let lastPopHtml = '';
 let pressing = false;      // a pointer is down on the matrix: a rebuild now would swallow its click
 let holdTimer = 0;
 let holdFired = false;     // the long press already withdrew: ignore the click that follows it
+let role = { mine: 0, h: '', can: 0, sr: 0 };   // the slice's "r" (TacSession.cs)
+let lastNoteSeq = -1;
+let lastOtherKey = '';
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -55,7 +65,13 @@ function postCommand(payload) {
   }, (err) => console.warn('[TAC] command failed:', payload.cmd, err && err.message));
 }
 
-function flash(text) { flashEl.textContent = text; }
+const FLASH_MS = 6000;   // a notice is read once, then gets out of the way
+let flashTimer = 0;
+function flash(text) {
+  flashEl.textContent = otherNoteEl.textContent = text;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { flashEl.textContent = otherNoteEl.textContent = ''; }, FLASH_MS);
+}
 
 function selected() {
   return board.find((e) => e.id === selectedId) || board[0] || null;
@@ -247,6 +263,59 @@ matrixEl.addEventListener('click', (e) => {
   }
 });
 
+// ── Role ───────────────────────────────────────────────────────────────────────────────────────
+// What a player who doesn't hold TAC sees: the holder, and why they can or can't apply.
+function otherText(r) {
+  if (r.h) {
+    return { msg: 'TAC IS HANDLED BY ' + r.h, taken: true,
+      sub: r.sr === 1 ? "Your squadron's assignments from TAC appear here." : 'Only squad leaders work with TAC.' };
+  }
+  const msg = 'NO TAC OFFICER IN YOUR FACTION';
+  if (r.can) return { msg, sub: 'You have no squad, so you can take the role. There is no approval step: you get it straight away.' };
+  if (r.sr === 1) return { msg, sub: "Your assignments appear here once someone takes TAC. Squad leaders can't apply: TAC sits above the squads." };
+  if (r.sr === 2) return { msg, sub: "Squad members can't apply: TAC sits above the squads." };
+  return { msg, sub: 'Join a faction to apply for TAC.' };
+}
+
+function renderRole() {
+  document.body.classList.toggle('mine', !!role.mine);
+  const key = JSON.stringify(role);
+  if (key === lastOtherKey) return;
+  lastOtherKey = key;
+  holderEl.textContent = role.h || '— NONE —';
+  holderEl.className = 'tac-holder' + (role.h ? '' : ' none');
+  const t = otherText(role);
+  otherMsgEl.textContent = t.msg;
+  otherSubEl.textContent = t.sub;
+  otherLampEl.classList.toggle('taken', !!t.taken);
+  applyBtn.hidden = !role.can;
+}
+
+applyBtn.addEventListener('click', () => postCommand({ cmd: 'apply' }));
+
+// RELEASE clears the whole board and every leader's list, so it needs the same long press as an
+// ENGAGED cell (decision 22); a tap only says so.
+let releaseTimer = 0;
+let releaseFired = false;
+function cancelRelease() {
+  clearTimeout(releaseTimer);
+  releaseBtn.classList.remove('holding');
+}
+releaseBtn.addEventListener('pointerdown', () => {
+  releaseFired = false;
+  releaseBtn.classList.add('holding');
+  releaseTimer = setTimeout(() => {
+    releaseFired = true;
+    releaseBtn.classList.remove('holding');
+    postCommand({ cmd: 'release' });
+  }, HOLD_MS);
+});
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) releaseBtn.addEventListener(ev, cancelRelease);
+releaseBtn.addEventListener('click', () => {
+  if (releaseFired) { releaseFired = false; return; }
+  flash('Hold RELEASE to give up the role — it clears the board');
+});
+
 locateBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'locate', id: sel.id }); });
 removeBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'remove', id: sel.id }); });
 
@@ -274,6 +343,16 @@ function renderFrame(d) {
   board = sortBoard(Array.isArray(slice.board) ? slice.board : []);
   squadrons = Array.isArray(slice.sq) ? slice.sq : [];
   pulls = slice.pull || {};
+  role = slice.r || { mine: 0, h: '', can: 0, sr: 0 };
+  renderRole();
+  if (!role.mine) closePop();
+  // Each notice once: the page may have been opened long after it was raised, so the first frame
+  // only records the sequence.
+  const note = slice.note;
+  if (note && note.s !== lastNoteSeq) {
+    if (lastNoteSeq !== -1 && note.t) flash(note.t);
+    lastNoteSeq = note.s;
+  }
   contacts = Array.isArray(d.contacts) ? d.contacts : [];
   contactsById = {};
   for (const c of contacts) contactsById[c.id] = c;

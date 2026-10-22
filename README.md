@@ -11,10 +11,11 @@ board (ADD from their MAP selection, PULL FROM SQUAD, or a leader's REPORT), set
 priority, and assigns it to squadrons; squad leaders see their assignments, ACQUIRE them and mark
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
-**Status: in development.** The officer's board works on its own: ADD FROM MAP, priority, LOCATE
-and REMOVE. Squadrons, assignments, PULL, REPORT and the squad leader's page need new NOXMFD
-extension API (faction roster, read-only squad state, per-extension messaging); the design and
-build order are in [`docs/tac-plan.md`](docs/tac-plan.md).
+**Status: in development.** Built against NOXMFD's unreleased extension API 8 (faction roster, own
+squad, per-extension messaging). The TAC role (APPLY/RELEASE, one officer per faction) and the
+officer's board (ADD FROM MAP, priority, LOCATE, REMOVE) work; squadrons, assignments, PULL, REPORT
+and the squad leader's page are next. The design and build order are in
+[`docs/tac-plan.md`](docs/tac-plan.md).
 
 This extension is an experiment: try TAC with real players, gather feedback and refine it. If it
 proves useful, TAC may later become a native NOXMFD feature.
@@ -25,16 +26,24 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
 
 ## What's here
 
-- `src/plugin/Plugin.cs` — registers the **TAC** EXT page; clears the board on every scene load.
-- `src/plugin/TacBoard.cs` — the officer's in-memory board and its command handler (add, remove,
-  priority, assign, unassign, locate), published as this extension's slice.
+- `src/plugin/Plugin.cs` — checks NOXMFD has extension messaging (API 8), registers the **TAC** EXT
+  page and message handler, and spawns the persistent `TAC_Worker` that ticks the session.
+- `src/plugin/TacRole.cs` — who holds the TAC role: APPLY/RELEASE, the lower-SteamID claim race,
+  losing the role on joining a squad or leaving the faction, the silent-holder timeout. Pure.
+- `src/plugin/TacSession.cs` — the live glue: claim/release messages to faction-mates, the board
+  gated to the role's holder, and the page's slice (role + board).
+- `src/plugin/TacBoard.cs` — the officer's in-memory board and its commands (add, remove, priority,
+  assign, unassign, locate).
+- `src/plugin/TacJson.cs` — JSON string escaping for the slice and messages. Pure.
 - `src/plugin/TacPageAssets.cs` — embedded-resource lookup for `src/web/`'s HTML/CSS/JS.
 - `src/web/tac.{html,css,js}` — the page: the squadron matrix in NOXMFD's Lit Panel style, reading
   names, OBSERVED/STALE and the MAP selection from NOXMFD's telemetry stream.
 - `src/web/tac-board.js` — pure board helpers (sort, status, cell state, ADD list), checked by
   `node src/web/tac-board.test.js`.
-- `tools/preview.py` — browser preview with a mock board, 6 squadrons and mock squad leaders that
-  answer PULL, no game needed (`python tools/preview.py [port]`).
+- `tools/preview.py` — browser preview with a mock board, 6 squadrons, mock squad leaders that
+  answer PULL, and every role state, no game needed (`python tools/preview.py [port]`).
+- `tools/tests/` — xUnit tests for the pure C# (`dotnet test tools/tests`), compiled straight from
+  `src/plugin/` like NOXMFD's own `tools/tests`.
 - `docs/` — planning doc (design decisions, phase-1 scope, message protocol, the NOXMFD API it
   needs) — see [`tac-plan.md`](docs/tac-plan.md).
 - `lib/NOXMFD.dll` — compile-time reference only, not shipped to players (NOXMFD is already

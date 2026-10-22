@@ -9,9 +9,32 @@
   <link rel="stylesheet" href="/ext/tac/tac.css">
 </head>
 <body>
+  <div class="tac-other" id="other">
+    <div class="tac-head">
+      <span class="tac-title">TAC</span>
+      <span class="tac-spacer"></span>
+      <span class="tac-label">TAC:</span>
+      <span class="tac-holder" id="holder"></span>
+    </div>
+    <div class="tac-other-body">
+      <span class="tac-other-lamp" id="other-lamp"></span>
+      <span class="tac-other-msg" id="other-msg"></span>
+      <span class="tac-other-sub" id="other-sub"></span>
+      <button type="button" class="lit tac-apply" id="apply-btn">APPLY FOR TAC</button>
+      <span class="tac-flash tac-other-note" id="other-note" aria-live="polite"></span>
+    </div>
+    <div class="tac-rules">
+      <span class="tac-label">THE TAC ROLE</span>
+      <span>One officer per faction · only a player without a squad can apply · no takeover while the role is held · lost on RELEASE, leaving, switching faction or joining a squad · gone after ~15 s of silence</span>
+    </div>
+  </div>
+
   <div class="tac-page">
     <div class="tac-head">
       <span class="tac-title">TARGET CONTROL</span>
+      <span class="tac-spacer"></span>
+      <span class="tac-you">YOU ARE TAC</span>
+      <button type="button" class="tac-btn tac-remove tac-release" id="release-btn">RELEASE</button>
     </div>
 
     <div class="tac-bar">

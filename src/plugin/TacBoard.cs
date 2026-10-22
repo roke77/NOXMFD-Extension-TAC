@@ -97,17 +97,12 @@ namespace TacModule
                     Plugin.Log?.LogWarning($"[TAC] unknown command '{c.cmd}'.");
                     return;
             }
-            Publish();
+            TacSession.Publish();
         }
 
-        // The board lives for one mission (decision 11): any scene load — a new mission or the way
-        // back to the menu — starts it empty.
-        internal static void Clear()
-        {
-            if (_board.Count == 0) return;
-            _board.Clear();
-            Publish();
-        }
+        // The board lives for one mission and one officer (decision 11): emptied on a scene load and
+        // whenever this client stops holding the role. The caller publishes.
+        internal static void Clear() => _board.Clear();
 
         private static Entry? Find(uint id) => _board.Find(e => e.Id == id);
 
@@ -117,51 +112,29 @@ namespace TacModule
             return s.Length <= max ? s : s.Substring(0, max);
         }
 
-        // Re-published on every change rather than on a timer: NOXMFD folds the last-published slice
-        // into every telemetry frame (EXTENSIONS.md's PublishSlice), so a page that opens later gets
-        // the current board on its first frame. "sq" is the squadron roster, filled once squad
-        // leaders announce themselves over messaging (docs/tac-plan.md, build step 3).
-        private static void Publish()
+        // The board's part of the slice TacSession publishes. "sq" is the squadron roster, filled
+        // once squad leaders announce themselves (docs/tac-plan.md, build step 3).
+        internal static void AppendJson(StringBuilder sb)
         {
-            var sb = new StringBuilder(64 + _board.Count * 64);
-            sb.Append("{\"board\":[");
+            sb.Append("\"board\":[");
             for (int i = 0; i < _board.Count; i++)
             {
                 Entry e = _board[i];
                 if (i > 0) sb.Append(',');
                 sb.Append("{\"id\":").Append(e.Id.ToString(CultureInfo.InvariantCulture))
-                  .Append(",\"n\":"); AppendString(sb, e.Name);
+                  .Append(",\"n\":"); TacJson.AppendString(sb, e.Name);
                 sb.Append(",\"p\":").Append(e.Priority)
                   .Append(",\"s\":").Append(e.Seq)
                   .Append(",\"a\":[");
                 for (int j = 0; j < e.Assignees.Count; j++)
                 {
                     if (j > 0) sb.Append(',');
-                    sb.Append("{\"q\":"); AppendString(sb, e.Assignees[j].Squadron);
+                    sb.Append("{\"q\":"); TacJson.AppendString(sb, e.Assignees[j].Squadron);
                     sb.Append(",\"e\":").Append(e.Assignees[j].Engaged ? 1 : 0).Append('}');
                 }
                 sb.Append("]}");
             }
-            sb.Append("],\"sq\":[]}");
-            NOXMFD.Api.PublishSlice(Plugin.ExtId, sb.ToString());
-        }
-
-        private static void AppendString(StringBuilder sb, string s)
-        {
-            sb.Append('"');
-            foreach (char ch in s)
-            {
-                switch (ch)
-                {
-                    case '"': sb.Append("\\\""); break;
-                    case '\\': sb.Append("\\\\"); break;
-                    default:
-                        if (ch < 0x20) sb.Append("\\u").Append(((int)ch).ToString("x4", CultureInfo.InvariantCulture));
-                        else sb.Append(ch);
-                        break;
-                }
-            }
-            sb.Append('"');
+            sb.Append("],\"sq\":[]");
         }
     }
 }
