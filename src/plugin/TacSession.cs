@@ -17,9 +17,16 @@ namespace TacModule
     //   hello             leader -> holder        answers each claim: "I lead a squad and run TAC"
     //   tasks             holder -> leader        the squadron's whole target list, on change and per hello
     //   engaging          leader -> holder        ENGAGING on/off for one assigned target
+    //   pull / locks      holder -> leader -> holder   PULL: the leader's locked enemies right now
+    //   report            leader -> holder        REPORT: one of the leader's locked enemies
     internal static class TacSession
     {
         private const float TickSeconds = 0.25f;
+        private const float GoneCheckSeconds = 1f;
+
+        // Officer: each pulled squadron's reply, until the next pull of that squadron.
+        private static readonly Dictionary<string, TacLeader.Task[]> _pulls = new Dictionary<string, TacLeader.Task[]>(StringComparer.Ordinal);
+        private static float _nextGoneCheck;
 
         private static readonly TacRole _role = new TacRole();
         private static readonly TacRoster _roster = new TacRoster();
@@ -36,6 +43,7 @@ namespace TacModule
         {
             public string t = "";
             public uint id;
+            public string n = "";
             public bool on;
             public TacLeader.Task[]? l;
         }
@@ -76,7 +84,13 @@ namespace TacModule
                 _dropped.Clear();
                 _roster.Expire(now, _dropped);
                 foreach (string sq in _dropped) DropSquadron(sq);
-                SyncTasks();
+                if (now >= _nextGoneCheck)
+                {
+                    // Destroyed targets leave the board and every leader's list (decision 10).
+                    _nextGoneCheck = now + GoneCheckSeconds;
+                    foreach (uint id in TacBoard.Ids()) if (TacGame.IsGone(id)) TacBoard.Remove(id);
+                }
+                SyncTasks();   // also carries any removal above to the leaders
             }
             OnHolderMaybeChanged();
             Publish();
@@ -101,10 +115,17 @@ namespace TacModule
                     if (!_role.Release(self)) return;
                     Broadcast("release");
                     break;
-                case "engaging":
-                    TacLeader.HandleCommand(json, _role.IsMine(self) ? 0 : _role.Holder);
+                case "pull":
+                    if (!_role.IsMine(self) || !_roster.TryLeader(c.sq, out ulong leader)) return;
+                    _pulls.Remove(c.sq);   // the page shows "waiting" until the reply lands
+                    Api.SendMessage(Plugin.ExtId, leader, MessageJson("pull"));
                     break;
                 default:
+                    if (TacLeader.IsLeaderCommand(c.cmd))
+                    {
+                        TacLeader.HandleCommand(json, _role.IsMine(self) ? 0 : _role.Holder);
+                        break;
+                    }
                     // Everything else edits the board, which only the role's holder has.
                     if (!_role.IsMine(self))
                     {
@@ -164,10 +185,39 @@ namespace TacModule
                     TacLeader.SetTasks(m.l);
                     break;
                 case "engaging":
+                {
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
                     if (squadron != null && TacBoard.SetEngaged(m.id, squadron, m.on)) OnBoardChanged();
                     break;
+                }
+                case "pull":
+                    // Answered without a press (decision 8), with a note so the leader knows.
+                    if (_role.Holder != from || _role.IsMine(self) || !TacLeader.IsLeader()) return;
+                    Api.SendMessage(Plugin.ExtId, from, TacLeader.LocksMessage());
+                    TacLeader.NotePulled();
+                    break;
+                case "locks":
+                {
+                    if (!_role.IsMine(self)) return;
+                    string? squadron = _roster.KeyOf(from);
+                    if (squadron == null) return;
+                    _pulls[squadron] = m.l ?? Array.Empty<TacLeader.Task>();
+                    break;
+                }
+                case "report":
+                {
+                    // From a squadron on the roster, and an enemy as this officer's own game sees it.
+                    if (!_role.IsMine(self)) return;
+                    string? squadron = _roster.KeyOf(from);
+                    if (squadron == null || !TacGame.IsEnemy(m.id)) return;
+                    if (TacBoard.Add(m.id, m.n))
+                    {
+                        Note(squadron + " reported " + (m.n.Length > 0 ? m.n : "a target"));
+                        OnBoardChanged();
+                    }
+                    break;
+                }
             }
             OnHolderMaybeChanged();
             Publish();
@@ -199,6 +249,7 @@ namespace TacModule
                 TacBoard.Clear();
                 _roster.Clear();
                 _sentTasks.Clear();
+                _pulls.Clear();
             }
             TacLeader.Clear();
             _lastHolder = _role.Holder;
@@ -244,7 +295,27 @@ namespace TacModule
               .Append("},\"note\":{\"s\":").Append(_noteSeq).Append(",\"t\":"); TacJson.AppendString(sb, _note);
             sb.Append("},");
             TacBoard.AppendJson(sb, mine ? _roster.Keys() : new List<string>());
-            sb.Append(',');
+            sb.Append(",\"pull\":{");
+            bool first = true;
+            if (mine)
+            {
+                foreach (var kv in _pulls)
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    TacJson.AppendString(sb, kv.Key);
+                    sb.Append(":[");
+                    for (int i = 0; i < kv.Value.Length; i++)
+                    {
+                        if (i > 0) sb.Append(',');
+                        sb.Append("{\"id\":").Append(kv.Value[i].id).Append(",\"n\":");
+                        TacJson.AppendString(sb, kv.Value[i].n);
+                        sb.Append('}');
+                    }
+                    sb.Append(']');
+                }
+            }
+            sb.Append("},");
             TacLeader.AppendJson(sb);
             sb.Append('}');
 

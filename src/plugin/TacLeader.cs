@@ -21,6 +21,9 @@ namespace TacModule
         }
 
         private static List<Task> _tasks = new List<Task>();
+        private static int _pulledSeq;   // bumped per answered PULL: the page's "TAC PULLED YOUR TARGETS" banner
+
+        internal static void NotePulled() => _pulledSeq++;
 
         [Serializable]
         private class Command
@@ -29,6 +32,9 @@ namespace TacModule
             public uint id;
             public bool on;
         }
+
+        internal static bool IsLeaderCommand(string cmd) =>
+            cmd == "engaging" || cmd == "acquire" || cmd == "acquire-all" || cmd == "report";
 
         internal static bool IsLeader() => Api.GetLocalSquad().Role == SquadRole.Leader;
 
@@ -66,26 +72,68 @@ namespace TacModule
             catch (Exception ex) { Plugin.Log?.LogWarning($"[TAC] malformed command: {ex.Message}"); return; }
             if (c == null || holder == 0 || !IsLeader()) return;
 
-            if (c.cmd == "engaging")
+            switch (c.cmd)
             {
-                Task? t = _tasks.Find(x => x.id == c.id);
-                if (t == null) return;
-                t.e = c.on ? 1 : 0;   // shown at once; the officer's next "tasks" confirms it
-                Api.SendMessage(Plugin.ExtId, holder,
-                    "{\"t\":\"engaging\",\"id\":" + c.id.ToString(CultureInfo.InvariantCulture) + ",\"on\":" + (c.on ? "true" : "false") + "}");
-            }
-            else
-            {
-                Plugin.Log?.LogWarning($"[TAC] unknown leader command '{c.cmd}'.");
+                case "engaging":
+                {
+                    Task? t = _tasks.Find(x => x.id == c.id);
+                    if (t == null) return;
+                    t.e = c.on ? 1 : 0;   // shown at once; the officer's next "tasks" confirms it
+                    Api.SendMessage(Plugin.ExtId, holder,
+                        "{\"t\":\"engaging\",\"id\":" + Id(c.id) + ",\"on\":" + (c.on ? "true" : "false") + "}");
+                    break;
+                }
+                case "acquire":
+                    if (_tasks.Exists(x => x.id == c.id)) Api.SelectTarget(c.id);
+                    break;
+                case "acquire-all":
+                    foreach (Task t in _tasks) Api.SelectTarget(t.id);
+                    break;
+                case "report":
+                {
+                    // Only one of this leader's own locked enemies, named as the game names it — never
+                    // whatever id or name the page sent.
+                    List<TacGame.Lock> locks = TacGame.LockedEnemies();
+                    int i = locks.FindIndex(l => l.Id == c.id);
+                    if (i < 0) return;
+                    var sb = new StringBuilder("{\"t\":\"report\",\"id\":").Append(Id(c.id)).Append(",\"n\":");
+                    TacJson.AppendString(sb, Clip(locks[i].Name));
+                    Api.SendMessage(Plugin.ExtId, holder, sb.Append('}').ToString());
+                    break;
+                }
+                default:
+                    Plugin.Log?.LogWarning($"[TAC] unknown leader command '{c.cmd}'.");
+                    break;
             }
         }
+
+        // The reply to the officer's PULL (decision 8): this leader's locked enemies right now.
+        internal static string LocksMessage()
+        {
+            const int MaxLocks = 40;
+            List<TacGame.Lock> locks = TacGame.LockedEnemies();
+            var sb = new StringBuilder("{\"t\":\"locks\",\"l\":[");
+            for (int i = 0; i < locks.Count && i < MaxLocks; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append("{\"id\":").Append(Id(locks[i].Id)).Append(",\"n\":");
+                TacJson.AppendString(sb, Clip(locks[i].Name));
+                sb.Append('}');
+            }
+            return sb.Append("]}").ToString();
+        }
+
+        private static string Id(uint id) => id.ToString(CultureInfo.InvariantCulture);
+
+        // Names travel in messages capped at 4096 bytes: long ones are cut.
+        private static string Clip(string s) => s.Length > 40 ? s.Substring(0, 40) : s;
 
         // The leader's part of the slice: its squadron and assignments, in the officer's order.
         internal static void AppendJson(StringBuilder sb)
         {
             sb.Append("\"lead\":{\"q\":");
             TacJson.AppendString(sb, SquadronKey());
-            sb.Append(",\"l\":[");
+            sb.Append(",\"pulled\":").Append(_pulledSeq).Append(",\"l\":[");
             for (int i = 0; i < _tasks.Count; i++)
             {
                 Task t = _tasks[i];

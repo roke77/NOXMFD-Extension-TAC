@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 1 in progress: build step 1 (the officer board, extension only) is done; see
+Phase 1 built (build steps 1–3); the two-player match test (step 4) is next. See
 [Build order](#build-order-phase-1). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
@@ -137,7 +137,9 @@ The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Pa
 - **ENGAGING** toggle per assignment (decision 7) — pressing it again turns the officer's row back
   to ASSIGNED.
 - **ACQUIRE** per row, plus **ACQUIRE ALL**: select the assigned targets in the leader's own
-  in-game targeting, like TD's AQUIRE — the extension calls the game directly.
+  in-game targeting, like TD's AQUIRE — through NOXMFD's `Api.SelectTarget`, which runs MAP's own
+  tap-to-select path (detection gate, TGT filters, cockpit marker and beep) rather than this
+  extension re-implementing those rules against the game.
 - **REPORT TO TAC**: the leader's current locks; pick one to send it to the officer's board.
 - A brief "TAC pulled your targets" note when a PULL is answered (decision 8), since that reply
   goes out without a press.
@@ -217,7 +219,8 @@ directly.
    `Api.SetMessageHandler(id, handler)`. NOXMFD prefixes the wire type (`ext.<id>`), so an extension
    can't forge or intercept NOXMFD's own `sqd.*` messages; payloads up to 4096 UTF-8 bytes; sends
    only to peers known to run NOXMFD; handlers run on the main thread.
-4. **Docs + version** — this extension's `BepInDependency` floor raised to the NOXMFD release that
+4. **Selecting a target** — `Api.SelectTarget(unitId)`, for ACQUIRE: MAP's own tap-to-select path.
+5. **Docs + version** — this extension's `BepInDependency` floor raised to the NOXMFD release that
    ships API version 8, and `lib/NOXMFD.dll` refreshed from it.
 
 Already available and used as-is: `RegisterExtension` (+ its command handler), `PublishSlice`,
@@ -235,6 +238,7 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
 3. **Role and messaging**, on `feature/tac-phase1`, one commit per piece as it works in the
    preview: claim/release, `hello` and the squadron roster, assign/unassign/priority delivery,
    ENGAGING, PULL and REPORT, the squad leader and everyone-else views, destroyed-target removal.
+   Built and checked in the preview; needs step 4.
 4. **Two-player test** in a real match (decision 14), covering this extension and NOXMFD's API 8
    together. NOXMFD's API branch ships in a NOXMFD release only after it passes; this extension's
    release follows, pinned to that NOXMFD version.

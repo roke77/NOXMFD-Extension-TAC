@@ -53,13 +53,6 @@ namespace TacModule
             try { c = JsonUtility.FromJson<Command>(json); }
             catch (Exception ex) { Plugin.Log?.LogWarning($"[TAC] malformed command: {ex.Message}"); return; }
             if (c == null) return;
-            if (c.cmd == "pull")
-            {
-                // Answered by the squadron's leader over messaging (docs/tac-plan.md, build step 3);
-                // until then there is nobody to ask.
-                Plugin.Log?.LogInfo($"[TAC] PULL from '{c.sq}' not sent: squad messaging isn't available yet.");
-                return;
-            }
             if (c.id == 0)
             {
                 Plugin.Log?.LogWarning($"[TAC] '{c.cmd}' command without a unit id.");
@@ -70,11 +63,10 @@ namespace TacModule
             switch (c.cmd)
             {
                 case "add":
-                    if (e != null) return;   // one row per unit, however many ways it arrives
-                    _board.Add(new Entry { Id = c.id, Name = Clip(c.name, MaxNameLength), Seq = ++_seq });
+                    if (!Add(c.id, c.name)) return;
                     break;
                 case "remove":
-                    if (e == null || !_board.Remove(e)) return;
+                    if (!Remove(c.id)) return;
                     break;
                 case "priority":
                     if (e == null || c.p < 0 || c.p > PriMax || e.Priority == c.p) return;
@@ -103,6 +95,19 @@ namespace TacModule
         // The board lives for one mission and one officer (decision 11): emptied on a scene load and
         // whenever this client stops holding the role. The caller publishes.
         internal static void Clear() => _board.Clear();
+
+        // ADD from MAP, PULL and a leader's REPORT all land here: one row per unit, however many ways
+        // it arrives, at NORMAL. True when it was new.
+        internal static bool Add(uint id, string? name)
+        {
+            if (id == 0 || Find(id) != null) return false;
+            _board.Add(new Entry { Id = id, Name = Clip(name, MaxNameLength), Seq = ++_seq });
+            return true;
+        }
+
+        internal static bool Remove(uint id) => _board.RemoveAll(e => e.Id == id) > 0;
+
+        internal static List<uint> Ids() => _board.ConvertAll(e => e.Id);
 
         // A leader's ENGAGING for one of its squadron's targets. True when something changed.
         internal static bool SetEngaged(uint id, string squadron, bool on)

@@ -12,9 +12,10 @@ priority, and assigns it to squadrons; squad leaders see their assignments, ACQU
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
 **Status: in development.** Built against NOXMFD's unreleased extension API 8 (faction roster, own
-squad, per-extension messaging). The TAC role (APPLY/RELEASE, one officer per faction) and the
-officer's board (ADD FROM MAP, priority, LOCATE, REMOVE) work; squadrons, assignments, PULL, REPORT
-and the squad leader's page are next. The design and build order are in
+squad, messaging, target selection). Phase 1 is built: the TAC role, the officer's squadron matrix
+(ADD FROM MAP, PULL, assignments, priority, LOCATE, REMOVE), the squad leader's page (ENGAGING,
+ACQUIRE, REPORT) and destroyed-target removal. It has only run in the browser preview so far; the
+two-player match test is next. The design and build order are in
 [`docs/tac-plan.md`](docs/tac-plan.md).
 
 This extension is an experiment: try TAC with real players, gather feedback and refine it. If it
@@ -32,12 +33,19 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
   losing the role on joining a squad or leaving the faction, the silent-holder timeout. Pure.
 - `src/plugin/TacSession.cs` — the live glue: claim/release messages to faction-mates, the board
   gated to the role's holder, and the page's slice (role + board).
+- `src/plugin/TacRoster.cs` — the officer's squadron roster: one entry per squadron whose leader
+  runs TAC, keyed by callsign + flight, with handover, rename and silence. Pure.
+- `src/plugin/TacLeader.cs` — a squad leader's side: the assignments TAC sent, ENGAGING, ACQUIRE,
+  REPORT, and the reply to a PULL.
+- `src/plugin/TacGame.cs` — game reads the API doesn't cover: the pilot's locked enemies, whether a
+  target is gone, whether a reported unit is an enemy.
 - `src/plugin/TacBoard.cs` — the officer's in-memory board and its commands (add, remove, priority,
-  assign, unassign, locate).
+  assign, unassign, locate), and each squadron's task list.
 - `src/plugin/TacJson.cs` — JSON string escaping for the slice and messages. Pure.
 - `src/plugin/TacPageAssets.cs` — embedded-resource lookup for `src/web/`'s HTML/CSS/JS.
-- `src/web/tac.{html,css,js}` — the page: the squadron matrix in NOXMFD's Lit Panel style, reading
-  names, OBSERVED/STALE and the MAP selection from NOXMFD's telemetry stream.
+- `src/web/tac.{html,css,js}` — the page, in NOXMFD's Lit Panel style: the officer's squadron
+  matrix, the squad leader's assignments and REPORT list, and everyone else's role view (holder,
+  APPLY FOR TAC). Reads names, OBSERVED/STALE and the pilot's own selection from NOXMFD's telemetry.
 - `src/web/tac-board.js` — pure board helpers (sort, status, cell state, ADD list), checked by
   `node src/web/tac-board.test.js`.
 - `tools/preview.py` — browser preview with a mock board, 6 squadrons, mock squad leaders that

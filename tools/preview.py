@@ -7,8 +7,8 @@ Serves /ext/tac/* from this repo's src/web, /assets/shared|services/* from a NOX
 POST /ext/tac/command applies add/remove/priority/assign/unassign to that board the way TacBoard.cs
 does, and answers a pull from mock squad leaders; GET /commands lists what was received.
 GET /scenario?s=board|empty|nosq|nomission&role=mine|free|taken|leader-free|leader-taken|member
-switches what the stream sends (&note=<text> raises a notice, &reset=1 reseeds the board); apply and
-release move the role between free and mine.
+switches what the stream sends (&note=<text> raises a notice, &pulled=1 has TAC pull the mock leader,
+&reset=1 reseeds the board); apply and release move the role between free and mine.
 """
 import json, sys, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -55,12 +55,14 @@ state = {"s": "board", "role": "mine"}
 board = seed()
 pulls = {}
 note = {"s": 0, "t": ""}
+# A squad leader's side (role=leader-taken): VIPER 1's assignments from MAVERICK.
+lead = {"q": "VIPER 1", "pulled": 0, "l": [{"id": 1, "n": "SA-15 Tor", "p": 3, "e": 1}, {"id": 2, "n": "Radar Mast", "p": 2, "e": 0}]}
 commands = []
 lock = threading.Lock()
 
 
 def slice_():
-    common = {"r": ROLES.get(state["role"], ROLES["mine"]), "note": note}
+    common = {"r": ROLES.get(state["role"], ROLES["mine"]), "note": note, "lead": lead}
     if state["s"] == "empty":
         return {**common, "board": [], "sq": SQUADRONS}
     return {**common, "board": board, "sq": [] if state["s"] == "nosq" else SQUADRONS, "pull": pulls}
@@ -92,6 +94,14 @@ def apply(c):
             state["role"] = "free"
             board = []
             pulls.clear()
+        return
+    # A leader's commands, as TacLeader.cs handles them (acquire/report only log here).
+    if cmd == "engaging":
+        for t in lead["l"]:
+            if t["id"] == uid:
+                t["e"] = 1 if c.get("on") else 0
+        return
+    if cmd in ("acquire", "acquire-all", "report"):
         return
     if state["role"] != "mine":
         return
@@ -154,6 +164,8 @@ class H(BaseHTTPRequestHandler):
                 state["role"] = q.get("role", [state["role"]])[0]
                 if "note" in q:
                     notice(q["note"][0])
+                if q.get("pulled", ["0"])[0] == "1":
+                    lead["pulled"] += 1
                 if q.get("reset", ["0"])[0] == "1":
                     board = seed(); pulls.clear()
             return self._json(state)

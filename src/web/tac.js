@@ -29,6 +29,13 @@ const otherSubEl = $('other-sub');
 const otherNoteEl = $('other-note');
 const applyBtn = $('apply-btn');
 const releaseBtn = $('release-btn');
+const leadHolderEl = $('lead-holder');
+const leadSqEl = $('lead-sq');
+const leadCountEl = $('lead-count');
+const leadFlashEl = $('lead-flash');
+const leadListEl = $('lead-list');
+const reportListEl = $('report-list');
+const pulledEl = $('pulled');
 
 let board = [];            // the slice's board, sorted for display
 let squadrons = [];        // the slice's roster: callsign + flight of each leader running TAC
@@ -68,9 +75,9 @@ function postCommand(payload) {
 const FLASH_MS = 6000;   // a notice is read once, then gets out of the way
 let flashTimer = 0;
 function flash(text) {
-  flashEl.textContent = otherNoteEl.textContent = text;
+  flashEl.textContent = otherNoteEl.textContent = leadFlashEl.textContent = text;
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => { flashEl.textContent = otherNoteEl.textContent = ''; }, FLASH_MS);
+  flashTimer = setTimeout(() => { flashEl.textContent = otherNoteEl.textContent = leadFlashEl.textContent = ''; }, FLASH_MS);
 }
 
 function selected() {
@@ -279,6 +286,7 @@ function otherText(r) {
 
 function renderRole() {
   document.body.classList.toggle('mine', !!role.mine);
+  document.body.classList.toggle('lead', !role.mine && role.sr === 1 && !!role.h);
   const key = JSON.stringify(role);
   if (key === lastOtherKey) return;
   lastOtherKey = key;
@@ -316,6 +324,68 @@ releaseBtn.addEventListener('click', () => {
   flash('Hold RELEASE to give up the role — it clears the board');
 });
 
+// ── Squad leader ───────────────────────────────────────────────────────────────────────────────
+let lead = { q: '', pulled: 0, l: [] };   // the slice's "lead" (TacLeader.cs)
+let dismissedPulled = -1;                 // the pull count the OK button last acknowledged
+const reported = new Set();               // ids reported this session, shown as SENT TO TAC
+let lastLeadHtml = '';
+let lastLeadCount = '';
+let lastReportHtml = '';
+let leadPressing = false;
+
+function leadRowHtml(t) {
+  const on = !!t.e;
+  return '<div class="tac-lead-row"><span class="tac-lead-name">' + escapeHtml(t.n || '—') + '</span>' +
+    '<span class="tac-pri p' + t.p + '">' + PRIORITIES[t.p] + '</span>' +
+    '<button type="button" class="lit tac-engaging' + (on ? ' on' : '') + '" data-id="' + t.id + '" aria-pressed="' + on + '">ENGAGING</button>' +
+    '<button type="button" class="tac-btn tac-acquire" data-id="' + t.id + '">ACQUIRE</button></div>';
+}
+
+function renderLead() {
+  leadHolderEl.textContent = role.h || '— NONE —';
+  leadSqEl.textContent = lead.q || '';
+  const n = lead.l.length;
+  const count = '— <b>' + n + '</b> ASSIGNMENT' + (n === 1 ? '' : 'S');
+  if (count !== lastLeadCount) leadCountEl.innerHTML = lastLeadCount = count;
+  const html = '<div class="tac-lead-head"><span class="tac-colh">TARGET</span><span class="tac-colh">PRIORITY</span>' +
+    '<span class="tac-colh">STATUS</span><span></span></div>' +
+    (n ? lead.l.map(leadRowHtml).join('') : '<div class="tac-lead-empty">— NO ASSIGNMENTS FROM TAC YET —</div>');
+  if (html !== lastLeadHtml && !leadPressing) {
+    leadListEl.innerHTML = html;
+    lastLeadHtml = html;
+  }
+  pulledEl.hidden = !(lead.pulled > dismissedPulled);
+
+  // REPORT: this leader's own locked enemies, from telemetry like ADD FROM MAP (decision 17).
+  const locks = contacts.filter((c) => c.tg && c.f === 2);
+  const rhtml = locks.length ? locks.map((c) => '<div class="tac-report-row"><span class="tac-pop-name">' + escapeHtml(c.t || '—') + '</span>' +
+    (reported.has(c.id) ? '<span class="tac-pop-tag">SENT TO TAC ✓</span>'
+      : '<button type="button" class="tac-btn tac-add" data-id="' + c.id + '" data-n="' + escapeHtml(c.t || '') + '">REPORT</button>') + '</div>').join('')
+    : '<div class="tac-report-empty">— NO ENEMY LOCKS —</div>';
+  if (rhtml !== lastReportHtml && !leadPressing) {
+    reportListEl.innerHTML = rhtml;
+    lastReportHtml = rhtml;
+  }
+}
+
+for (const el of [leadListEl, reportListEl]) el.addEventListener('pointerdown', () => { leadPressing = true; });
+for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, () => setTimeout(() => { leadPressing = false; }, 0));
+leadListEl.addEventListener('click', (e) => {
+  const eng = e.target.closest('.tac-engaging');
+  if (eng) { postCommand({ cmd: 'engaging', id: Number(eng.dataset.id), on: eng.getAttribute('aria-pressed') !== 'true' }); return; }
+  const acq = e.target.closest('.tac-acquire');
+  if (acq) postCommand({ cmd: 'acquire', id: Number(acq.dataset.id) });
+});
+$('acquire-all').addEventListener('click', () => postCommand({ cmd: 'acquire-all' }));
+reportListEl.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-id]');
+  if (!b) return;
+  postCommand({ cmd: 'report', id: Number(b.dataset.id) });
+  reported.add(Number(b.dataset.id));
+  flash('REPORTED — ' + b.dataset.n + ' is on its way to TAC');
+});
+$('pulled-ok').addEventListener('click', () => { dismissedPulled = lead.pulled; pulledEl.hidden = true; });
+
 locateBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'locate', id: sel.id }); });
 removeBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'remove', id: sel.id }); });
 
@@ -335,6 +405,7 @@ function render() {
   }
   renderFoot(sel);
   renderPop();
+  if (document.body.classList.contains('lead')) renderLead();
 }
 
 function renderFrame(d) {
@@ -344,6 +415,9 @@ function renderFrame(d) {
   squadrons = Array.isArray(slice.sq) ? slice.sq : [];
   pulls = slice.pull || {};
   role = slice.r || { mine: 0, h: '', can: 0, sr: 0 };
+  const ld = slice.lead || {};
+  lead = { q: ld.q || '', pulled: ld.pulled || 0, l: Array.isArray(ld.l) ? ld.l : [] };
+  if (dismissedPulled === -1) dismissedPulled = lead.pulled;   // a page opened later shows only new pulls
   renderRole();
   if (!role.mine) closePop();
   // Each notice once: the page may have been opened long after it was raised, so the first frame

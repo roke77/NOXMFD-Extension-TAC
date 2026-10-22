@@ -294,11 +294,63 @@ html, body {
   font-size: clamp(9px, 1.5vmin, 13px); line-height: 1.6; letter-spacing: 0.05em; color: var(--no-control-text-off);
 }
 
-/* Holding the role shows the officer's board; anyone else sees the role view. */
+/* ── Squad leader: my squadron's assignments, ENGAGING / ACQUIRE, REPORT ──────────────────────── */
+.tac-lead {
+  height: 100%;
+  display: none; flex-direction: column;
+  gap: var(--gap, 14px);
+  padding: clamp(6px, 1.8vmin, 16px) clamp(34px, 5vw, 48px) clamp(10px, 2.4vmin, 22px);
+}
+.tac-lead-sq { font-size: clamp(13px, 2.4vmin, 20px); letter-spacing: 0.1em; color: var(--no-squad); white-space: nowrap; }
+.tac-lead-list, .tac-report-list {
+  min-height: 0; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--no-gray) transparent;
+}
+.tac-lead-list { flex: 1 1 55%; border-top: 1px solid var(--no-green-dark); }
+.tac-lead-list::-webkit-scrollbar, .tac-report-list::-webkit-scrollbar { width: 6px; }
+.tac-lead-list::-webkit-scrollbar-track, .tac-report-list::-webkit-scrollbar-track { background: transparent; }
+.tac-lead-list::-webkit-scrollbar-thumb, .tac-report-list::-webkit-scrollbar-thumb { background: var(--no-gray); border-radius: 3px; }
+.tac-lead-head, .tac-lead-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(90px, 13vw, 130px) clamp(120px, 17vw, 170px) clamp(100px, 15vw, 150px);
+  gap: 12px; align-items: center; padding: 0 12px;
+}
+.tac-lead-head { height: 32px; border-bottom: 1px solid var(--no-green-dark); }
+.tac-lead-row { min-height: clamp(52px, 8vmin, 68px); border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); }
+.tac-lead-name { font-size: clamp(13px, 2.3vmin, 20px); letter-spacing: 0.06em; color: var(--no-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tac-engaging {
+  --accent: var(--no-green); --lamp-w: 2.4em;
+  height: clamp(40px, 6.6vmin, 52px); gap: 8px;
+  font-size: clamp(9px, 1.6vmin, 14px); letter-spacing: 0.12em;
+}
+.tac-lead-row .tac-btn { height: clamp(40px, 6.6vmin, 52px); }
+.tac-lead-empty, .tac-report-empty { padding: 28px 12px; text-align: center; font-size: clamp(10px, 1.6vmin, 14px); letter-spacing: 0.12em; color: var(--no-green-dim); }
+
+.tac-pulled {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 48px; padding: 0 6px 0 14px;
+  border: 1px solid var(--no-amber); border-radius: 4px;
+  background: rgba(var(--no-amber-rgb), 0.06);
+}
+.tac-pulled[hidden] { display: none; }
+.tac-pulled-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--no-amber); }
+.tac-pulled-text { flex: 1 1 auto; font-size: clamp(10px, 1.8vmin, 15px); letter-spacing: 0.12em; color: var(--no-amber); }
+.tac-pulled-sub { font-size: clamp(9px, 1.4vmin, 12px); color: var(--no-control-text-off); }
+.tac-pulled-ok { border: 0; height: 36px; }
+
+.tac-report { flex: 1 1 45%; min-height: 0; display: flex; flex-direction: column; }
+.tac-report-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--no-green-dark); }
+.tac-report-row { display: flex; align-items: center; gap: 12px; min-height: clamp(46px, 7.4vmin, 58px); padding: 0 12px; border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); }
+.tac-report-row .tac-pop-name { flex: 1 1 auto; }
+.tac-report-row .tac-btn { min-width: clamp(90px, 14vmin, 130px); }
+.tac-lead-foot { font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.05em; color: var(--no-control-text-off); }
+
+/* Holding the role shows the officer's board; a squad leader under a TAC officer sees their
+   assignments; anyone else sees the role view. */
 body:not(.mine) .tac-page { display: none; }
-body:not(.mine) .tac-other { display: flex; }
+body:not(.mine):not(.lead) .tac-other { display: flex; }
+body.lead:not(.mine) .tac-lead { display: flex; }
 
 /* No-mission state — shared .mfd-empty (theme.css), the convention ATC and NOXMFD's pages use. */
 #no-mission { display: none; }
-body.no-mission .tac-page, body.no-mission .tac-other { display: none; }
+body.no-mission .tac-page, body.no-mission .tac-other, body.no-mission .tac-lead { display: none; }
 body.no-mission #no-mission { display: block; }
