@@ -2,7 +2,8 @@
 
 ## Status
 
-Planning. Scaffold only (an empty "COMING SOON" TAC page). This doc turns
+Phase 1 in progress: build step 1 (the officer board, extension only) is done; see
+[Build order](#build-order-phase-1). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
 
@@ -30,7 +31,8 @@ board, not a mission planner. Full requirements in the ticket.
    NOXMFD's TGT/TD/SQD pages. Squad members and squadless players can install it too, but TAC has
    nothing to do with them (decision 15).
 2. **The officer is a pilot in a faction, spawned in an aircraft (parked is fine), and may fly.**
-   Their board uses their own faction's picture (`FactionHQ`), read directly by this extension.
+   Their board uses their own faction's picture (`FactionHQ`), which the page reads from NOXMFD's
+   telemetry stream: each contact's name, stale flag and whether the officer has it selected.
    ADD needs the aircraft: NOXMFD's MAP selection is a real in-game target selection, which the
    game only allows with a local aircraft. PULL and REPORT work without one. A MAP pick mode that
    works without an aircraft would be a NOXMFD feature — phase 2.
@@ -80,29 +82,41 @@ board, not a mission planner. Full requirements in the ticket.
     neutral units; those aren't offered.
 18. **The officer's board is sorted by priority** (CRITICAL first), then by when the target was
     added — matching the leader's assignment list.
+19. **The officer's page is a squadron matrix** (design C of the TAC page alternatives): one row
+    per target, one column per squadron, and each cell is the assignment control. It replaces the
+    ASSIGN ▼ / UNASSIGN ▼ menus and the board-level PULL FROM SQUAD ▼ of the original mockup.
+20. **No TARGETING action** on the officer's page: LOCATE and REMOVE are the only per-target
+    actions.
+21. **An ENGAGED cell withdraws only on a long press**; an unassigned or ASSIGNED cell toggles on a
+    tap. A stray tap mid-fight must not pull a squadron off a target it's attacking.
 
 ## Phase 1 scope
 
 ### Officer view (the holder of the TAC role)
 
-- **Target board**: every target on the board, header count (`12 TARGETS`); each row shows the
-  target, **OBSERVED/STALE**, **priority**, and the assignees with their state
-  (`VIPER / ENGAGED`, `— / UNASSIGNED`). No distance (ticket req 4).
+The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Panel style:
+
+- **Header**: title, `YOU ARE TAC` and **RELEASE**. Below it the counts (`12 TARGETS · 6
+  SQUADRONS`), a short status line for messages, and **ADD FROM MAP ▼**.
+- **Matrix**: columns **TARGET**, **OBS** (OBSERVED, or STALE in a dashed tag), **PRI** (colour-coded:
+  CRITICAL red, HIGH amber, NORMAL white, LOW grey), then one column per squadron (callsign +
+  flight, teal) with a **PULL ▼** button under its name. TARGET/OBS/PRI and the header row stay
+  pinned while the squadron columns scroll sideways and the rows scroll down; the scrollbars are
+  NOXMFD's thin grey ones. No distance (ticket req 4).
+- **Cells** are lamp pushbuttons: unlit = not assigned, teal lamp `ASGN` = assigned, glowing green
+  `ENGD` = engaged. Tap to assign or withdraw; an ENGAGED cell needs a long press (decision 21).
 - **OBSERVED/STALE** comes from the officer's own faction picture — the same accuracy check
-  NOXMFD's stale flag uses (`FactionHQ.IsTargetPositionAccurate`).
-- **Board-level actions** (header): **ADD ▼** and **PULL FROM SQUAD ▼** — both only put targets on
-  the board; assigning is a separate step.
-- **ADD ▼**: lists the officer's own current selection — the units they've selected by tapping
-  them on NOXMFD's MAP page (the same in-game target selection TGT shows), read straight from the
-  game. Tap a unit to add it, or **ADD ALL**. Units already on the board show as `on board ✓`
-  rather than being added twice. No long picker: the MAP is the picker.
-- **PULL FROM SQUAD ▼**: pick a squadron; its leader's extension replies with the leader's current
-  locks (decision 8), listed the same way — tap to add, or **ADD ALL**.
-- **Detail strip** on the selected row: SELECTED, STATUS, **PRIORITY** (LOW / NORMAL / HIGH /
-  CRITICAL), **ASSIGN ▼** (a squadron), **LOCATE** (MAP highlight via the existing
-  `Api.SetSelectedUnit`/`SetSelectedUnitTrack`), **TARGETING** (select it in the officer's own
-  in-game targeting), **UNASSIGN** (withdraw one assignee) and **REMOVE** (drop the row,
-  withdrawing every assignment).
+  NOXMFD's stale flag uses (`FactionHQ.IsTargetPositionAccurate`). A target missing from the
+  frame's contacts (a jammed picture, or no longer known) shows STALE.
+- **ADD FROM MAP ▼**: lists the officer's own current selection — the units they've selected by
+  tapping them on NOXMFD's MAP page (the same in-game target selection TGT shows). Tap a unit to
+  add it, or **ADD ALL**. Units already on the board show as `on board ✓` rather than being added
+  twice. No long picker: the MAP is the picker.
+- **PULL ▼** under a squadron: its leader's extension replies with the leader's current locks
+  (decision 8), listed the same way — tap to add, or **ADD ALL**.
+- **Bottom section**, pinned to the bottom of the page: SELECTED (the selected row's name), STATUS,
+  **LOCATE** (MAP highlight via the existing `Api.SetSelectedUnit`) and **REMOVE** (drop the row,
+  withdrawing every assignment) on one line; the four **PRIORITY** lamp buttons below it.
 - Target identity is the game's `persistentID` everywhere (ticket reqs 15), so a target pulled
   twice, or reported by two leaders, is one row.
 
@@ -196,6 +210,19 @@ game state it reads directly.
 
 Already available and used as-is: `RegisterExtension` (+ its command handler), `PublishSlice`,
 `SetSelectedUnit`, `SetSelectedUnitTrack`.
+
+## Build order (phase 1)
+
+1. **Officer board, extension only.** The board bookkeeping in C# (add, remove, priority, assign,
+   LOCATE), published as this extension's slice; the matrix page, reading names, OBSERVED/STALE and
+   the officer's MAP selection from NOXMFD's telemetry stream the way the ATC extension does; a
+   `tools/preview.py` harness with mock data. Works in a single-player mission with no squadron
+   columns yet.
+2. **NOXMFD API additions** (a NOXMFD feature branch): the four items above.
+3. **Role and messaging**: claim/release, `hello` and the squadron roster, assign/unassign/priority
+   delivery, ENGAGING, PULL and REPORT, destroyed-target removal; the squad leader and everyone-else
+   views.
+4. **Two-player test** in a real match (decision 14).
 
 ## Phase 2 (deferred)
 
