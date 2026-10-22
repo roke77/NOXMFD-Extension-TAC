@@ -61,8 +61,10 @@ board, not a mission planner. Full requirements in the ticket.
     assignee's copy, is removed once the game drops the unit.
 11. **The board lives for the mission, in memory.** Cleared when the mission ends or the officer
     releases/leaves the role; leaders' assignment lists clear with it.
-12. **Simultaneous claims: the earlier claim wins.** Each `claim` carries its claim time; a holder
-    that sees an earlier claim from another player steps down.
+12. **Simultaneous claims: the lower SteamID wins.** A holder that hears another player's `claim`
+    while holding the role keeps it only if its own SteamID is lower; otherwise it steps down with a
+    note. No clocks involved: two PCs' clocks can be seconds apart, so a claim time can't decide a
+    race.
 13. **Joining a squad loses TAC.** If the officer creates a squad, or accepts an invite into one,
     TAC is released (decision 3 applied strictly). Phase 1 can't stop the squad actions themselves —
     those are NOXMFD's own SQD features — so the extension reacts to the squad state instead.
@@ -78,8 +80,8 @@ board, not a mission planner. Full requirements in the ticket.
     knows, the officer's extension re-sends that squadron's assignments (with priority and ENGAGING
     state) to the new leader. A squadron that disbands, or whose leader goes silent (startup step
     5), has its assignments withdrawn — its rows fall back to UNASSIGNED if nobody else holds them.
-17. **PULL and REPORT offer enemy targets only** (for now). A leader's locks can include friendly or
-    neutral units; those aren't offered.
+17. **ADD, PULL and REPORT offer enemy targets only** (for now). The officer's MAP selection and a
+    leader's locks can include friendly or neutral units; those aren't offered.
 18. **The officer's board is sorted by priority** (CRITICAL first), then by when the target was
     added — matching the leader's assignment list.
 19. **The officer's page is a squadron matrix** (design C of the TAC page alternatives): one row
@@ -89,6 +91,11 @@ board, not a mission planner. Full requirements in the ticket.
     actions.
 21. **An ENGAGED cell withdraws only on a long press**; an unassigned or ASSIGNED cell toggles on a
     tap. A stray tap mid-fight must not pull a squadron off a target it's attacking.
+22. **RELEASE needs the same long press.** It clears the whole board and every leader's list, so a
+    tap only shows "hold to release".
+23. **The squad leader's page is the canvas's "Squad leader view" board** as drawn: assignments
+    with ENGAGING and ACQUIRE, ACQUIRE ALL, the "TAC pulled your targets" note, and REPORT on each
+    enemy lock.
 
 ## Phase 1 scope
 
@@ -108,7 +115,7 @@ The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Pa
 - **OBSERVED/STALE** comes from the officer's own faction picture — the same accuracy check
   NOXMFD's stale flag uses (`FactionHQ.IsTargetPositionAccurate`). A target missing from the
   frame's contacts (a jammed picture, or no longer known) shows STALE.
-- **ADD FROM MAP ▼**: lists the officer's own current selection — the units they've selected by
+- **ADD FROM MAP ▼**: lists the enemy units in the officer's own current selection — the units they've selected by
   tapping them on NOXMFD's MAP page (the same in-game target selection TGT shows). Tap a unit to
   add it, or **ADD ALL**. Units already on the board show as `on board ✓` rather than being added
   twice. No long picker: the MAP is the picker.
@@ -223,10 +230,12 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
    columns yet.
 2. **NOXMFD API additions** (a NOXMFD feature branch): the four items above. Built; needs its
    two-client live check before it ships in a NOXMFD release.
-3. **Role and messaging**: claim/release, `hello` and the squadron roster, assign/unassign/priority
-   delivery, ENGAGING, PULL and REPORT, destroyed-target removal; the squad leader and everyone-else
-   views.
-4. **Two-player test** in a real match (decision 14).
+3. **Role and messaging**, on `feature/tac-phase1`, one commit per piece as it works in the
+   preview: claim/release, `hello` and the squadron roster, assign/unassign/priority delivery,
+   ENGAGING, PULL and REPORT, the squad leader and everyone-else views, destroyed-target removal.
+4. **Two-player test** in a real match (decision 14), covering this extension and NOXMFD's API 8
+   together. NOXMFD's API branch ships in a NOXMFD release only after it passes; this extension's
+   release follows, pinned to that NOXMFD version.
 
 ## Phase 2 (deferred)
 
