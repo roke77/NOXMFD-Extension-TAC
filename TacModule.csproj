@@ -42,7 +42,7 @@
     <!-- Own embedded web assets, mirroring NOXMFD's own src/plugin + src/web split
          (docs/src-architecture.md) — resource names still end in ".web.<dotted path>" regardless
          of the src\ prefix, resolved by TacPageAssets.cs's own suffix match. -->
-    <EmbeddedResource Include="src\web\**\*" Exclude="src\web\**\*.md" />
+    <EmbeddedResource Include="src\web\**\*" Exclude="src\web\**\*.md;src\web\**\*.test.js" />
   </ItemGroup>
 
   <ItemGroup>

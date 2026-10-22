@@ -1,6 +1,6 @@
 # NOXMFD Extension: TAC Module
 
-[![NOXMFD](https://img.shields.io/badge/Requires-NOXMFD-blue)](https://github.com/roke77/NOXMFD)
+[![NOXMFD](https://img.shields.io/badge/Requires-NOXMFD%200.52.0%2B-blue)](https://github.com/roke77/NOXMFD)
 ![Version](https://img.shields.io/badge/Version-0.1.0-green)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -11,9 +11,10 @@ board (ADD from their MAP selection, PULL FROM SQUAD, or a leader's REPORT), set
 priority, and assigns it to squadrons; squad leaders see their assignments, ACQUIRE them and mark
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
-**Status: planning.** The page is an empty "COMING SOON" scaffold. The design is settled in
-[`docs/tac-plan.md`](docs/tac-plan.md); phase 1 first needs new NOXMFD extension API (faction
-roster, read-only squad state, per-extension messaging), listed there.
+**Status: in development.** The officer's board works on its own: ADD FROM MAP, priority, LOCATE
+and REMOVE. Squadrons, assignments, PULL, REPORT and the squad leader's page need new NOXMFD
+extension API (faction roster, read-only squad state, per-extension messaging); the design and
+build order are in [`docs/tac-plan.md`](docs/tac-plan.md).
 
 This extension is an experiment: try TAC with real players, gather feedback and refine it. If it
 proves useful, TAC may later become a native NOXMFD feature.
@@ -24,9 +25,16 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
 
 ## What's here
 
-- `src/plugin/Plugin.cs` — registers the **TAC** EXT page.
+- `src/plugin/Plugin.cs` — registers the **TAC** EXT page; clears the board on every scene load.
+- `src/plugin/TacBoard.cs` — the officer's in-memory board and its command handler (add, remove,
+  priority, assign, unassign, locate), published as this extension's slice.
 - `src/plugin/TacPageAssets.cs` — embedded-resource lookup for `src/web/`'s HTML/CSS/JS.
-- `src/web/tac.{html,css,js}` — the page itself, currently an empty "COMING SOON" placeholder.
+- `src/web/tac.{html,css,js}` — the page: the squadron matrix in NOXMFD's Lit Panel style, reading
+  names, OBSERVED/STALE and the MAP selection from NOXMFD's telemetry stream.
+- `src/web/tac-board.js` — pure board helpers (sort, status, cell state, ADD list), checked by
+  `node src/web/tac-board.test.js`.
+- `tools/preview.py` — browser preview with a mock board, 6 squadrons and mock squad leaders that
+  answer PULL, no game needed (`python tools/preview.py [port]`).
 - `docs/` — planning doc (design decisions, phase-1 scope, message protocol, the NOXMFD API it
   needs) — see [`tac-plan.md`](docs/tac-plan.md).
 - `lib/NOXMFD.dll` — compile-time reference only, not shipped to players (NOXMFD is already
