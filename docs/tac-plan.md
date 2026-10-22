@@ -163,8 +163,9 @@ extension and can't be mistaken for NOXMFD's own squad messages. Sketch:
 
 Trust follows the squad protocol's model: `assign`/`priority` accepted only from the current
 holder; `report`/`engaging`/`pull-reply` accepted only by the holder, only from a faction peer that
-announced itself as a squad leader (`hello`). That's self-reported — the officer has no way to see
-another squad's roster — which is acceptable for a same-faction coordination board.
+announced itself as a squad leader (`hello`). The officer checks a `hello` against
+`Api.GetFactionPilots`: the sender must be the leader of the squad (callsign + flight) its own
+presence beat announces, which NOXMFD already broadcasts faction-wide.
 
 ### Startup and roster
 
@@ -188,25 +189,27 @@ board itself still starts empty and fills only from ADD, PULL and REPORT (decisi
    TAC reappears for squadless players. A leader that changes faction likewise stops answering and
    drops off the officer's lists (step 5).
 
-A squad whose leader doesn't run the extension never appears: NOXMFD's faction-wide presence beacon
-only says who runs NOXMFD, not who leads which squad.
+A squad whose leader doesn't run the extension never appears: NOXMFD's faction table knows every
+squad and its leader, but only a leader running TAC can receive assignments.
 
 ## NOXMFD API additions (phase 1)
 
-The only change phase 1 makes to NOXMFD. Everything else above is this extension's own code, or
-game state it reads directly.
+The only change phase 1 makes to NOXMFD, built as extension API version 8 on NOXMFD's
+`feature/ext-squad-messaging-api` branch (NOXMFD's `docs/extension-messaging.md`, `EXTENSIONS.md`
+surfaces 10–12). Everything else above is this extension's own code, or game state it reads
+directly.
 
-1. **Who's out there** — own SteamID, plus the faction-mates currently running NOXMFD (name +
-   SteamID). Built from what already exists: `PlayerRoster` and `Presence.HasNoxmfd`.
-2. **Squad state, read-only** — own role (none/leader/member), callsign, flight and own designation
-   (`VIPER 2-1`). A subset of what `/squad` already serves; nothing about other members is needed,
-   since TAC only deals with leaders.
-3. **Per-extension messaging** — send a small text payload to one peer, and register a handler for
-   payloads addressed to this extension. NOXMFD prefixes the wire type with the extension id, so an
-   extension can't forge or intercept NOXMFD's own `sqd.*` messages; same size cap and envelope
-   rules as the squad transport; handlers run on the main thread.
-4. **Docs + version** — an `EXTENSIONS.md` section for the new surfaces, and this extension's
-   `BepInDependency` floor raised to the NOXMFD version that ships them.
+1. **Who's out there** — `Api.LocalSteamId` and `Api.GetFactionPilots()`: the faction-mates
+   currently running NOXMFD, each with SteamID, Steam name, designation and the squad they announced
+   (callsign, flight, leader) — from `PlayerRoster`, `Presence` and the faction identity table.
+2. **Squad state, read-only** — `Api.GetLocalSquad()`: own role (none/leader/member), squad
+   callsign, flight and leader, and own designation (`VIPER 2-1`).
+3. **Per-extension messaging** — `Api.SendMessage(id, to, payload)` and
+   `Api.SetMessageHandler(id, handler)`. NOXMFD prefixes the wire type (`ext.<id>`), so an extension
+   can't forge or intercept NOXMFD's own `sqd.*` messages; payloads up to 4096 UTF-8 bytes; sends
+   only to peers known to run NOXMFD; handlers run on the main thread.
+4. **Docs + version** — this extension's `BepInDependency` floor raised to the NOXMFD release that
+   ships API version 8, and `lib/NOXMFD.dll` refreshed from it.
 
 Already available and used as-is: `RegisterExtension` (+ its command handler), `PublishSlice`,
 `SetSelectedUnit`, `SetSelectedUnitTrack`.
@@ -218,7 +221,8 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
    the officer's MAP selection from NOXMFD's telemetry stream the way the ATC extension does; a
    `tools/preview.py` harness with mock data. Works in a single-player mission with no squadron
    columns yet.
-2. **NOXMFD API additions** (a NOXMFD feature branch): the four items above.
+2. **NOXMFD API additions** (a NOXMFD feature branch): the four items above. Built; needs its
+   two-client live check before it ships in a NOXMFD release.
 3. **Role and messaging**: claim/release, `hello` and the squadron roster, assign/unassign/priority
    delivery, ENGAGING, PULL and REPORT, destroyed-target removal; the squad leader and everyone-else
    views.
