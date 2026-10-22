@@ -167,7 +167,7 @@ function renderPop() {
     items = addCandidates(contacts, board);
     popTitleEl.textContent = 'SELECTED ON MAP (' + items.length + ')';
     popSubEl.textContent = 'New targets start at NORMAL';
-    note = 'No units selected — tap units on MAP first';
+    note = 'No enemy units selected — tap enemies on MAP first';
   } else {
     const reply = pulls[pop.sq];
     const onBoard = new Set(board.map((e) => e.id));

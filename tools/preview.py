@@ -54,6 +54,8 @@ def slice_():
 
 def frame():
     contacts = [{"id": i, "t": n, "f": 2, "x": 0, "z": 0, "h": 0, "st": st, "tg": tg} for (i, n, st, tg) in CONTACTS]
+    # A friendly the officer also has selected on MAP: ADD FROM MAP must not offer it.
+    contacts.append({"id": 31, "t": "FS-12 Revoker", "f": 1, "x": 0, "z": 0, "h": 0, "st": 0, "tg": 1})
     with lock:
         return {"world": {"x": 0, "z": 0}, "contacts": contacts, "ext": {"tac": slice_()}}
 
