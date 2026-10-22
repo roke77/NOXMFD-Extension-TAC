@@ -42,7 +42,7 @@ namespace TacModule
                 _sceneSubscribed = true;
                 SceneManager.sceneLoaded += OnSceneLoaded;
             }
-            Log.LogInfo("TAC loaded.");
+            Log.LogInfo($"TAC {MyPluginInfo.PLUGIN_VERSION} loaded (NOXMFD extension API {NOXMFD.Api.ApiVersion}+ found).");
         }
 
         // Kept out of Awake: the JIT compiles a method whole before running it, and this one names

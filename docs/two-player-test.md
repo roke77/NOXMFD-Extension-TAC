@@ -18,8 +18,18 @@ In the match: both players in the **same faction**, both **spawned in an aircraf
 sit parked). **A** plays TAC officer and stays **out of any squad**. **B** creates a squad
 (SQD → CREATE SQUAD, e.g. `VIPER 1`) and so becomes its leader. Each opens EXT → TAC.
 
-If anything fails, keep both players' `BepInEx/LogOutput.log`: lines starting `[TAC]` (this
-extension) and `[NOXMFD squad-link` (the transport underneath) usually say why.
+If anything fails, keep both players' `BepInEx/LogOutput.log` and note the clock time of the step.
+Grep them for:
+
+- `[TAC]` — role changes (`TAC holder: X -> Y`), squadrons joining/leaving the matrix, refusals
+  with their reason (APPLY refused, a `hello` the faction table doesn't back, a sender NOXMFD
+  doesn't list yet).
+- `[TAC diag` — time-stamped message traffic: tasks sent/received, ENGAGING, PULL, REPORT, ACQUIRE.
+- `[NOXMFD ext-link` — the first TAC message each way per player, and `[NOXMFD] message for
+  extension 'tac' … dropped: not installed here` when the other side lacks TAC.
+- `[NOXMFD squad-link` — the Steam transport underneath (sessions, failed sends).
+
+The first line from TAC, `TAC <version> loaded`, confirms the right build is installed.
 
 ## Steps
 

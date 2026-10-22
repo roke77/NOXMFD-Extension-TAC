@@ -63,6 +63,8 @@ namespace TacModule
 
         internal static void Clear() => _tasks = new List<Task>();
 
+        internal static int Count => _tasks.Count;
+
         // Page commands a leader sends. Ignored unless this player leads a squad and someone else
         // holds TAC.
         internal static void HandleCommand(string json, ulong holder)
@@ -79,23 +81,34 @@ namespace TacModule
                     Task? t = _tasks.Find(x => x.id == c.id);
                     if (t == null) return;
                     t.e = c.on ? 1 : 0;   // shown at once; the officer's next "tasks" confirms it
-                    Api.SendMessage(Plugin.ExtId, holder,
+                    bool sent = Api.SendMessage(Plugin.ExtId, holder,
                         "{\"t\":\"engaging\",\"id\":" + Id(c.id) + ",\"on\":" + (c.on ? "true" : "false") + "}");
+                    TacSession.Diag($"ENGAGING {(c.on ? "on" : "off")} for '{t.n}' ({c.id}) -> {TacSession.Who(holder)}: {(sent ? "sent" : "send refused")}");
                     break;
                 }
                 case "acquire":
-                    if (_tasks.Exists(x => x.id == c.id)) Api.SelectTarget(c.id);
+                    if (_tasks.Exists(x => x.id == c.id))
+                        TacSession.Diag($"ACQUIRE {c.id}: {(Api.SelectTarget(c.id) ? "selected" : "not selected (NOXMFD logs why)")}");
                     break;
                 case "acquire-all":
-                    foreach (Task t in _tasks) Api.SelectTarget(t.id);
+                {
+                    int selected = 0;
+                    foreach (Task t in _tasks) if (Api.SelectTarget(t.id)) selected++;
+                    TacSession.Diag($"ACQUIRE ALL: selected {selected} of {_tasks.Count} (the rest already selected or not selectable)");
                     break;
+                }
                 case "report":
                 {
                     // Only one of this leader's own locked enemies, named as the game names it — never
                     // whatever id or name the page sent.
                     List<TacGame.Lock> locks = TacGame.LockedEnemies();
                     int i = locks.FindIndex(l => l.Id == c.id);
-                    if (i < 0) return;
+                    if (i < 0)
+                    {
+                        TacSession.Info($"REPORT of {c.id} refused: not one of your locked enemies right now");
+                        return;
+                    }
+                    TacSession.Diag($"REPORT '{locks[i].Name}' ({c.id}) -> {TacSession.Who(holder)}");
                     // A target object with the message type added: {"id":..,"n":"..","t":"report"}.
                     var sb = TacJson.AppendTarget(new StringBuilder(), c.id, TacJson.Clip(locks[i].Name, MaxSentName));
                     Api.SendMessage(Plugin.ExtId, holder, sb.Append(",\"t\":\"report\"}").ToString());

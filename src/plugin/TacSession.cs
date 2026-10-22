@@ -33,6 +33,7 @@ namespace TacModule
         private static readonly Dictionary<string, string> _sentTasks = new Dictionary<string, string>(StringComparer.Ordinal);
         private static readonly List<string> _dropped = new List<string>();
         private static readonly HashSet<ulong> _badSenders = new HashSet<ulong>();
+        private static readonly Dictionary<string, string> _loggedTasks = new Dictionary<string, string>(StringComparer.Ordinal);
         private static float _nextTick;
         private static int _noteSeq;
         private static string _note = "";
@@ -75,9 +76,11 @@ namespace TacModule
                 case TacRole.Tick.SendRelease:
                     Broadcast("release");
                     Note(inSquad ? "TAC released: you joined a squad" : "TAC released: you left the faction");
+                    Info(inSquad ? "role released: you joined a squad" : "role released: you left the faction (now: " + (Faction() ?? "none") + ")");
                     break;
                 case TacRole.Tick.HolderGone:
                     Note("The TAC officer went silent — the role is free");
+                    Info($"no claim for {TacRole.HolderTimeoutSeconds:0} s — the officer is treated as gone");
                     break;
             }
             if (_role.IsMine(self))
@@ -89,7 +92,8 @@ namespace TacModule
                 {
                     // Destroyed targets leave the board and every leader's list (decision 10).
                     _nextGoneCheck = now + GoneCheckSeconds;
-                    foreach (uint id in TacBoard.Ids()) if (TacGame.IsGone(id)) TacBoard.Remove(id);
+                    foreach (uint id in TacBoard.Ids())
+                        if (TacGame.IsGone(id) && TacBoard.Remove(id)) Info($"target {id} destroyed — removed from the board");
                 }
                 SyncTasks();   // also carries any removal above to the leaders
             }
@@ -108,18 +112,28 @@ namespace TacModule
             switch (c.cmd)
             {
                 case "apply":
-                    if (!_role.Apply(self, Api.GetLocalSquad().Role != SquadRole.None, Faction(), Time.unscaledTime))
-                        Plugin.Log?.LogInfo("[TAC] APPLY FOR TAC refused: the role is taken, or you're in a squad or no faction.");
+                {
+                    bool inSquad = Api.GetLocalSquad().Role != SquadRole.None;
+                    string? faction = Faction();
+                    if (_role.Apply(self, inSquad, faction, Time.unscaledTime))
+                        Info($"applied for TAC in faction '{faction}' — claiming now");
+                    else
+                        Info("APPLY FOR TAC refused: " + (self == 0 ? "Steam isn't available"
+                            : _role.Holder != 0 ? "the role is held by " + Who(_role.Holder)
+                            : inSquad ? "you're in a squad" : "you're not in a faction"));
                     _nextTick = 0f;   // claim on the next frame rather than up to a tick later
                     break;
+                }
                 case "release":
                     if (!_role.Release(self)) return;
                     Broadcast("release");
+                    Info("you released TAC");
                     break;
                 case "pull":
                     if (!_role.IsMine(self) || !_roster.TryLeader(c.sq, out ulong leader)) return;
                     _pulls.Remove(c.sq);   // the page shows "waiting" until the reply lands
-                    Api.SendMessage(Plugin.ExtId, leader, MessageJson("pull"));
+                    bool sent = Api.SendMessage(Plugin.ExtId, leader, MessageJson("pull"));
+                    Diag($"PULL -> {c.sq} ({Who(leader)}): {(sent ? "sent" : "send refused")}");
                     break;
                 default:
                     if (TacLeader.IsLeaderCommand(c.cmd))
@@ -154,59 +168,97 @@ namespace TacModule
             }
             if (m == null) return;
             FactionPilot? sender = FindPilot(from);
-            if (sender == null) return;
+            if (sender == null)
+            {
+                // The usual cause: NOXMFD hasn't heard this player's presence beat yet (or they're in
+                // another faction). Logged once; later messages from them are dropped quietly.
+                Once("nopilot|" + from, $"'{m.t}' from {from} ignored: NOXMFD doesn't list them as a faction-mate running it (yet)");
+                return;
+            }
 
             ulong self = Api.LocalSteamId;
             float now = Time.unscaledTime;
             switch (m.t)
             {
                 case "claim":
-                    if (sender.SquadLeaderId != 0) return;   // only a player outside any squad can hold TAC
+                    if (sender.SquadLeaderId != 0)   // only a player outside any squad can hold TAC
+                    {
+                        Once("sqclaim|" + from, $"claim from {Who(from)} ignored: the faction table shows them in a squad");
+                        return;
+                    }
                     switch (_role.OnClaim(from, self, now))
                     {
                         case TacRole.Heard.SteppedDown:
                             Note("TAC taken by " + Label(sender) + " (their claim won the race)");
+                            Info($"stepped down: {Who(from)} claimed too, and the lower SteamID wins");
                             break;
                         case TacRole.Heard.Contested:
                             Api.SendMessage(Plugin.ExtId, from, MessageJson("claim"));
+                            Diag($"claim from {Who(from)} while we hold TAC — answered with ours (our SteamID is lower)");
                             break;
                     }
-                    if (_role.Holder == from && TacLeader.IsLeader()) Api.SendMessage(Plugin.ExtId, from, MessageJson("hello"));
+                    if (_role.Holder == from && TacLeader.IsLeader())
+                    {
+                        bool sent = Api.SendMessage(Plugin.ExtId, from, MessageJson("hello"));
+                        Once("hello-out|" + from, $"answering {Who(from)}'s claims with hello as {TacLeader.SquadronKey()} ({(sent ? "sent" : "send refused")})");
+                    }
                     break;
                 case "release":
                     if (_role.OnRelease(from, self)) Note(Label(sender) + " released TAC");
                     break;
                 case "hello":
+                {
                     // Believed only from the leader of the squad its own presence beat announces.
-                    if (!_role.IsMine(self) || sender.SquadLeaderId != from || sender.SquadCallsign.Length == 0) return;
+                    if (!_role.IsMine(self)) return;
+                    if (sender.SquadLeaderId != from || sender.SquadCallsign.Length == 0)
+                    {
+                        Once("badhello|" + from + "|" + sender.SquadLeaderId,
+                            $"hello from {Who(from)} ignored: the faction table shows them " +
+                            (sender.SquadLeaderId == 0 ? "in no squad" : "as a member of " + Who(sender.SquadLeaderId) + "'s squad") +
+                            " — normal for a few seconds after a squad is created");
+                        return;
+                    }
                     string key = TacRoster.Key(sender.SquadCallsign, sender.SquadFlight);
                     _dropped.Clear();
-                    _roster.Note(key, from, now, _dropped);
+                    TacRoster.Heard heard = _roster.Note(key, from, now, _dropped);
                     foreach (string sq in _dropped) DropSquadron(sq);
+                    if (heard == TacRoster.Heard.New) Info($"squadron {key} joined the matrix (leader {Who(from)})");
+                    else if (heard == TacRoster.Heard.HandedOver) Info($"squadron {key} handed over to {Who(from)} — re-sending its tasks");
                     _sentTasks.Remove(key);   // every hello gets the full list: a handover or a lost message heals here
                     SyncTasks();
                     break;
+                }
                 case "tasks":
+                {
                     if (_role.Holder != from || _role.IsMine(self) || !TacLeader.IsLeader()) return;
+                    int before = TacLeader.Count;
                     TacLeader.SetTasks(m.l);
+                    if (TacLeader.Count != before) Diag($"tasks from {Who(from)}: {TacLeader.Count} target(s) (was {before})");
                     break;
+                }
                 case "engaging":
                 {
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
+                    Diag($"engaging {(m.on ? "on" : "off")} for target {m.id} from {Who(from)} ({squadron ?? "not on the roster"})");
                     if (squadron != null && TacBoard.SetEngaged(m.id, squadron, m.on)) OnBoardChanged();
                     break;
                 }
                 case "pull":
+                {
                     // Answered without a press (decision 8), with a note so the leader knows.
                     if (_role.Holder != from || _role.IsMine(self) || !TacLeader.IsLeader()) return;
-                    Api.SendMessage(Plugin.ExtId, from, TacLeader.LocksMessage());
+                    string locks = TacLeader.LocksMessage();
+                    bool sent = Api.SendMessage(Plugin.ExtId, from, locks);
                     TacLeader.NotePulled();
+                    Diag($"PULL from {Who(from)} answered: {TacGame.LockedEnemies().Count} locked enemy(ies), {(sent ? "sent" : "send refused")}");
                     break;
+                }
                 case "locks":
                 {
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
+                    Diag($"PULL reply from {Who(from)} ({squadron ?? "not on the roster"}): {m.l?.Length ?? 0} target(s)");
                     if (squadron == null) return;
                     // Only the latest reply is kept: the slice rides every telemetry frame, and the
                     // page shows one PULL at a time (each PULL press asks afresh).
@@ -219,7 +271,10 @@ namespace TacModule
                     // From a squadron on the roster, and an enemy as this officer's own game sees it.
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
-                    if (squadron == null || !TacGame.IsEnemy(m.id)) return;
+                    bool enemy = TacGame.IsEnemy(m.id);
+                    Diag($"REPORT of '{m.n}' ({m.id}) from {Who(from)}: " +
+                         (squadron == null ? "ignored, not on the roster" : !enemy ? "ignored, not an enemy (or gone) here" : "accepted"));
+                    if (squadron == null || !enemy) return;
                     if (TacBoard.Add(m.id, m.n))
                     {
                         Note(squadron + " reported " + (m.n.Length > 0 ? m.n : "a target"));
@@ -253,11 +308,13 @@ namespace TacModule
         {
             if (_role.Holder == _lastHolder) return;
             ulong self = Api.LocalSteamId;
+            Info($"TAC holder: {Who(_lastHolder)} -> {Who(_role.Holder)}");
             if (_lastHolder == self && self != 0)
             {
                 TacBoard.Clear();
                 _roster.Clear();
                 _sentTasks.Clear();
+                _loggedTasks.Clear();
                 _pulls.Clear();
             }
             TacLeader.Clear();
@@ -272,15 +329,30 @@ namespace TacModule
             {
                 string tasks = TacBoard.TasksMessage(sq);
                 if (_sentTasks.TryGetValue(sq, out string? sent) && sent == tasks) continue;
-                if (_roster.TryLeader(sq, out ulong leader) && Api.SendMessage(Plugin.ExtId, leader, tasks))
-                    _sentTasks[sq] = tasks;
+                if (!_roster.TryLeader(sq, out ulong leader)) continue;
+                if (!Api.SendMessage(Plugin.ExtId, leader, tasks))
+                {
+                    Once("tasksfail|" + sq + "|" + leader, $"tasks for {sq} to {Who(leader)}: send refused (retried each tick)");
+                    continue;
+                }
+                _sentTasks[sq] = tasks;
+                // Logged only when the list itself changed, not on the re-send that follows each hello.
+                if (!_loggedTasks.TryGetValue(sq, out string? logged) || logged != tasks)
+                {
+                    _loggedTasks[sq] = tasks;
+                    Diag($"tasks -> {sq} ({Who(leader)}): {tasks.Length} bytes");
+                }
             }
         }
 
         private static void DropSquadron(string squadron)
         {
             _sentTasks.Remove(squadron);
-            if (TacBoard.RemoveSquadron(squadron)) Note(squadron + " left — its assignments were withdrawn");
+            _loggedTasks.Remove(squadron);
+            bool withdrew = TacBoard.RemoveSquadron(squadron);
+            if (withdrew) Note(squadron + " left — its assignments were withdrawn");
+            Info($"squadron {squadron} left the matrix (renamed, disbanded or silent {TacRoster.SilentSeconds:0} s)" +
+                 (withdrew ? " — its assignments were withdrawn" : ""));
         }
 
         // ── Slice ──────────────────────────────────────────────────────────────────────────────
@@ -331,6 +403,22 @@ namespace TacModule
             _lastSlice = slice;
             Api.PublishSlice(Plugin.ExtId, slice);
         }
+
+        // ── Logging ────────────────────────────────────────────────────────────────────────────
+        // Info: role and roster changes and refusals — rare, and what a player's log should show.
+        // Once: the same, for a cause that can repeat every few seconds (a sender NOXMFD doesn't
+        // list yet, a hello the faction table doesn't back), logged the first time per key.
+        private static readonly HashSet<string> _onceKeys = new HashSet<string>(StringComparer.Ordinal);
+        internal static void Info(string msg) => Plugin.Log?.LogInfo("[TAC] " + msg);
+        internal static void Once(string key, string msg) { if (_onceKeys.Add(key)) Info(msg); }
+
+        // ponytail: message-traffic diagnostics for the first two-player test, wall-clock stamped so
+        // two players' logs line up with each other and NOXMFD's [NOXMFD ext-link] lines. Remove
+        // (grep "Diag(") once TAC has shipped.
+        internal static void Diag(string msg) => Plugin.Log?.LogInfo($"[TAC diag {DateTime.Now:HH:mm:ss}] {msg}");
+
+        internal static string Who(ulong steamId) =>
+            steamId == 0 ? "nobody" : steamId == Api.LocalSteamId ? "you" : $"{Label(FindPilot(steamId))} ({steamId})";
 
         // ── Helpers ────────────────────────────────────────────────────────────────────────────
         private static void Note(string text)
