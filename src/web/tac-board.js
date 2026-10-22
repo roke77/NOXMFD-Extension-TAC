@@ -22,11 +22,11 @@
     return !a ? 'none' : a.e ? 'engd' : 'asgn';
   }
 
-  // The officer's MAP selection (contacts they have targeted), in frame order, each flagged when it
-  // is already on the board.
+  // The enemy units in the officer's MAP selection (decision 17; a contact's f is 2 for enemy), in
+  // frame order, each flagged when it is already on the board.
   function addCandidates(contacts, board) {
     const onBoard = new Set(board.map((e) => e.id));
-    return contacts.filter((c) => c.tg).map((c) => ({ id: c.id, n: c.t || '', on: onBoard.has(c.id) }));
+    return contacts.filter((c) => c.tg && c.f === 2).map((c) => ({ id: c.id, n: c.t || '', on: onBoard.has(c.id) }));
   }
 
   const api = { PRIORITIES, STATUSES, sortBoard, status, cellState, addCandidates };

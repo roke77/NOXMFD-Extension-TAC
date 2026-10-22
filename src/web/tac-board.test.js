@@ -23,11 +23,13 @@ assert.strictEqual(cellState(board[1], 'VIPER 1'), 'engd');
 assert.strictEqual(cellState(board[1], 'COBRA 1'), 'asgn');
 assert.strictEqual(cellState(board[1], 'RAVEN 3'), 'none');
 
-// ── addCandidates: only targeted contacts, flagged when already on the board ─
+// ── addCandidates: only targeted enemies, flagged when already on the board ──
 const contacts = [
-  { id: 2, t: 'SA-15 Tor', tg: 1 },
-  { id: 7, t: 'BTR-80', tg: 1 },
-  { id: 8, t: 'Truck', tg: 0 },
+  { id: 2, t: 'SA-15 Tor', f: 2, tg: 1 },
+  { id: 7, t: 'BTR-80', f: 2, tg: 1 },
+  { id: 8, t: 'Truck', f: 2, tg: 0 },
+  { id: 9, t: 'F-18', f: 1, tg: 1 },     // friendly: never offered
+  { id: 10, t: 'Vessel', f: 0, tg: 1 },  // neutral: never offered
 ];
 assert.deepStrictEqual(addCandidates(contacts, board), [
   { id: 2, n: 'SA-15 Tor', on: true },
