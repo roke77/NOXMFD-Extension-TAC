@@ -7,30 +7,44 @@ using UnityEngine;
 
 namespace TacModule
 {
-    // The live side of TAC (docs/tac-plan.md): drives TacRole from the game and NOXMFD's API, carries
-    // the claim/release messages, gates the board to the role's holder, and publishes the page's
-    // slice (role + board). Everything here runs on the Unity main thread: TacWorker.Update, the
-    // command handler and the message handler.
+    // The live side of TAC (docs/tac-plan.md): drives TacRole and TacRoster from the game and
+    // NOXMFD's API, carries the messages between the officer and squad leaders, gates the board to
+    // the role's holder, and publishes the page's slice. Everything here runs on the Unity main
+    // thread: TacWorker.Update, the command handler and the message handler.
+    //
+    // Messages ({"t": type, ...}, NOXMFD's ext.tac wire type):
+    //   claim / release   holder -> faction       who holds TAC (every 3 s while held)
+    //   hello             leader -> holder        answers each claim: "I lead a squad and run TAC"
+    //   tasks             holder -> leader        the squadron's whole target list, on change and per hello
+    //   engaging          leader -> holder        ENGAGING on/off for one assigned target
     internal static class TacSession
     {
         private const float TickSeconds = 0.25f;
 
         private static readonly TacRole _role = new TacRole();
+        private static readonly TacRoster _roster = new TacRoster();
+        private static readonly Dictionary<string, string> _sentTasks = new Dictionary<string, string>(StringComparer.Ordinal);
+        private static readonly List<string> _dropped = new List<string>();
         private static float _nextTick;
         private static int _noteSeq;
         private static string _note = "";
         private static string _lastSlice = "";
+        private static ulong _lastHolder;
 
         [Serializable]
         private class Message
         {
             public string t = "";
+            public uint id;
+            public bool on;
+            public TacLeader.Task[]? l;
         }
 
         [Serializable]
         private class Command
         {
             public string cmd = "";
+            public string sq = "";
         }
 
         internal static void Tick()
@@ -40,7 +54,10 @@ namespace TacModule
             _nextTick = now + TickSeconds;
 
             ulong self = Api.LocalSteamId;
-            bool inSquad = Api.GetLocalSquad().Role != SquadRole.None;
+            SquadRole squadRole = Api.GetLocalSquad().Role;
+            bool inSquad = squadRole != SquadRole.None;
+            // A leader who handed over, left or disbanded no longer gets this squadron's targets.
+            if (squadRole != SquadRole.Leader) TacLeader.Clear();
             switch (_role.Update(self, inSquad, Faction(), now))
             {
                 case TacRole.Tick.SendClaim:
@@ -48,13 +65,20 @@ namespace TacModule
                     break;
                 case TacRole.Tick.SendRelease:
                     Broadcast("release");
-                    TacBoard.Clear();
                     Note(inSquad ? "TAC released: you joined a squad" : "TAC released: you left the faction");
                     break;
                 case TacRole.Tick.HolderGone:
                     Note("The TAC officer went silent — the role is free");
                     break;
             }
+            if (_role.IsMine(self))
+            {
+                _dropped.Clear();
+                _roster.Expire(now, _dropped);
+                foreach (string sq in _dropped) DropSquadron(sq);
+                SyncTasks();
+            }
+            OnHolderMaybeChanged();
             Publish();
         }
 
@@ -76,7 +100,9 @@ namespace TacModule
                 case "release":
                     if (!_role.Release(self)) return;
                     Broadcast("release");
-                    TacBoard.Clear();
+                    break;
+                case "engaging":
+                    TacLeader.HandleCommand(json, _role.IsMine(self) ? 0 : _role.Holder);
                     break;
                 default:
                     // Everything else edits the board, which only the role's holder has.
@@ -85,14 +111,15 @@ namespace TacModule
                         Plugin.Log?.LogInfo($"[TAC] '{c.cmd}' ignored: you don't hold the TAC role.");
                         return;
                     }
+                    if (c.cmd == "assign" && !_roster.TryLeader(c.sq, out _)) return;   // a squadron that just left
                     TacBoard.HandleCommand(json);
                     return;
             }
+            OnHolderMaybeChanged();
             Publish();
         }
 
-        // Another player's copy of this extension. `from` is Steam-authenticated; the payload is not,
-        // and only a faction-mate outside any squad can hold the role (decision 3).
+        // Another player's copy of this extension. `from` is Steam-authenticated; the payload is not.
         internal static void HandleMessage(ulong from, string payload)
         {
             Message? m;
@@ -103,41 +130,103 @@ namespace TacModule
             if (sender == null) return;
 
             ulong self = Api.LocalSteamId;
+            float now = Time.unscaledTime;
             switch (m.t)
             {
                 case "claim":
-                    if (sender.SquadLeaderId != 0) return;
-                    switch (_role.OnClaim(from, self, Time.unscaledTime))
+                    if (sender.SquadLeaderId != 0) return;   // only a player outside any squad can hold TAC
+                    switch (_role.OnClaim(from, self, now))
                     {
                         case TacRole.Heard.SteppedDown:
-                            TacBoard.Clear();
                             Note("TAC taken by " + Label(sender) + " (their claim won the race)");
                             break;
                         case TacRole.Heard.Contested:
                             Api.SendMessage(Plugin.ExtId, from, MessageJson("claim"));
                             break;
                     }
+                    if (_role.Holder == from && TacLeader.IsLeader()) Api.SendMessage(Plugin.ExtId, from, MessageJson("hello"));
                     break;
                 case "release":
                     if (_role.OnRelease(from, self)) Note(Label(sender) + " released TAC");
                     break;
+                case "hello":
+                    // Believed only from the leader of the squad its own presence beat announces.
+                    if (!_role.IsMine(self) || sender.SquadLeaderId != from || sender.SquadCallsign.Length == 0) return;
+                    string key = TacRoster.Key(sender.SquadCallsign, sender.SquadFlight);
+                    _dropped.Clear();
+                    _roster.Note(key, from, now, _dropped);
+                    foreach (string sq in _dropped) DropSquadron(sq);
+                    _sentTasks.Remove(key);   // every hello gets the full list: a handover or a lost message heals here
+                    SyncTasks();
+                    break;
+                case "tasks":
+                    if (_role.Holder != from || _role.IsMine(self) || !TacLeader.IsLeader()) return;
+                    TacLeader.SetTasks(m.l);
+                    break;
+                case "engaging":
+                    if (!_role.IsMine(self)) return;
+                    string? squadron = _roster.KeyOf(from);
+                    if (squadron != null && TacBoard.SetEngaged(m.id, squadron, m.on)) OnBoardChanged();
+                    break;
             }
+            OnHolderMaybeChanged();
             Publish();
         }
 
-        // A new scene: the last match's role and board are gone (decision 11).
+        // A new scene: the last match's role, roster and board are gone (decision 11).
         internal static void OnSceneLoaded()
         {
             if (_role.IsMine(Api.LocalSteamId)) Broadcast("release");
             _role.Reset();
-            TacBoard.Clear();
+            OnHolderMaybeChanged();
             Publish();
+        }
+
+        internal static void OnBoardChanged()
+        {
+            SyncTasks();
+            Publish();
+        }
+
+        // Whenever the holder changes, what belonged to the old one goes: the officer's board and
+        // roster when the role leaves this client, a leader's assignments when the holder changes.
+        private static void OnHolderMaybeChanged()
+        {
+            if (_role.Holder == _lastHolder) return;
+            ulong self = Api.LocalSteamId;
+            if (_lastHolder == self && self != 0)
+            {
+                TacBoard.Clear();
+                _roster.Clear();
+                _sentTasks.Clear();
+            }
+            TacLeader.Clear();
+            _lastHolder = _role.Holder;
+        }
+
+        // Officer: each squadron's leader gets its "tasks" list whenever it differs from what it last got.
+        private static void SyncTasks()
+        {
+            if (!_role.IsMine(Api.LocalSteamId)) return;
+            foreach (string sq in _roster.Keys())
+            {
+                string tasks = TacBoard.TasksMessage(sq);
+                if (_sentTasks.TryGetValue(sq, out string? sent) && sent == tasks) continue;
+                if (_roster.TryLeader(sq, out ulong leader) && Api.SendMessage(Plugin.ExtId, leader, tasks))
+                    _sentTasks[sq] = tasks;
+            }
+        }
+
+        private static void DropSquadron(string squadron)
+        {
+            _sentTasks.Remove(squadron);
+            if (TacBoard.RemoveSquadron(squadron)) Note(squadron + " left — its assignments were withdrawn");
         }
 
         // ── Slice ──────────────────────────────────────────────────────────────────────────────
         // "r": the role as this client sees it — mine, holder label, whether APPLY is offered, own
         // squad role (0 none, 1 leader, 2 member). "note": the latest notice and its sequence, so
-        // the page shows each once. Published only when it changes.
+        // the page shows each once. "lead": a leader's assignments. Published only when it changes.
         internal static void Publish()
         {
             ulong self = Api.LocalSteamId;
@@ -147,14 +236,16 @@ namespace TacModule
             bool can = _role.CanApply(self, sq.Role != SquadRole.None, Faction());
             int squadRole = sq.Role == SquadRole.Leader ? 1 : sq.Role == SquadRole.Member ? 2 : 0;
 
-            var sb = new StringBuilder(256);
+            var sb = new StringBuilder(512);
             sb.Append("{\"r\":{\"mine\":").Append(mine ? 1 : 0)
               .Append(",\"h\":"); TacJson.AppendString(sb, holder);
             sb.Append(",\"can\":").Append(can ? 1 : 0)
               .Append(",\"sr\":").Append(squadRole)
               .Append("},\"note\":{\"s\":").Append(_noteSeq).Append(",\"t\":"); TacJson.AppendString(sb, _note);
             sb.Append("},");
-            TacBoard.AppendJson(sb);
+            TacBoard.AppendJson(sb, mine ? _roster.Keys() : new List<string>());
+            sb.Append(',');
+            TacLeader.AppendJson(sb);
             sb.Append('}');
 
             string slice = sb.ToString();

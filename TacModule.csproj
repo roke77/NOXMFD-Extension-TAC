@@ -30,7 +30,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>TacModule</RootNamespace>
     <DebugType>portable</DebugType>
-    <NoWarn>BepInEx002</NoWarn>
+    <!-- CS0649: the [Serializable] command/message classes are filled by JsonUtility through
+         reflection, which the compiler can't see. -->
+    <NoWarn>BepInEx002;CS0649</NoWarn>
     <RestoreAdditionalProjectSources>
       https://api.nuget.org/v3/index.json;
       https://nuget.bepinex.dev/v3/index.json;

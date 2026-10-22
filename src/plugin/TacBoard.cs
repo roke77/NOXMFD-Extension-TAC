@@ -97,12 +97,56 @@ namespace TacModule
                     Plugin.Log?.LogWarning($"[TAC] unknown command '{c.cmd}'.");
                     return;
             }
-            TacSession.Publish();
+            TacSession.OnBoardChanged();
         }
 
         // The board lives for one mission and one officer (decision 11): emptied on a scene load and
         // whenever this client stops holding the role. The caller publishes.
         internal static void Clear() => _board.Clear();
+
+        // A leader's ENGAGING for one of its squadron's targets. True when something changed.
+        internal static bool SetEngaged(uint id, string squadron, bool on)
+        {
+            Assignee? a = Find(id)?.Assignees.Find(x => x.Squadron == squadron);
+            if (a == null || a.Engaged == on) return false;
+            a.Engaged = on;
+            return true;
+        }
+
+        // A squadron that disbanded or went silent loses every assignment (decision 16).
+        internal static bool RemoveSquadron(string squadron)
+        {
+            bool changed = false;
+            foreach (Entry e in _board) changed |= e.Assignees.RemoveAll(a => a.Squadron == squadron) > 0;
+            return changed;
+        }
+
+        // One squadron's targets as the "tasks" message its leader receives: board order (priority,
+        // then when added), each with its ENGAGING state so a new leader after a handover inherits it.
+        // Capped so the message stays well inside NOXMFD's 4096-byte limit even with long names.
+        internal static string TasksMessage(string squadron)
+        {
+            const int MaxTasks = 40, MaxSentName = 40;
+            var mine = _board.FindAll(e => e.Assignees.Exists(a => a.Squadron == squadron));
+            mine.Sort((a, b) => b.Priority != a.Priority ? b.Priority.CompareTo(a.Priority) : a.Seq.CompareTo(b.Seq));
+            if (mine.Count > MaxTasks)
+            {
+                Plugin.Log?.LogWarning($"[TAC] {squadron} has {mine.Count} targets; sending its first {MaxTasks}.");
+                mine.RemoveRange(MaxTasks, mine.Count - MaxTasks);
+            }
+            var sb = new StringBuilder(32 + mine.Count * 64);
+            sb.Append("{\"t\":\"tasks\",\"l\":[");
+            for (int i = 0; i < mine.Count; i++)
+            {
+                Entry e = mine[i];
+                if (i > 0) sb.Append(',');
+                sb.Append("{\"id\":").Append(e.Id.ToString(CultureInfo.InvariantCulture)).Append(",\"n\":");
+                TacJson.AppendString(sb, Clip(e.Name, MaxSentName));
+                sb.Append(",\"p\":").Append(e.Priority)
+                  .Append(",\"e\":").Append(e.Assignees.Find(a => a.Squadron == squadron)!.Engaged ? 1 : 0).Append('}');
+            }
+            return sb.Append("]}").ToString();
+        }
 
         private static Entry? Find(uint id) => _board.Find(e => e.Id == id);
 
@@ -112,9 +156,9 @@ namespace TacModule
             return s.Length <= max ? s : s.Substring(0, max);
         }
 
-        // The board's part of the slice TacSession publishes. "sq" is the squadron roster, filled
-        // once squad leaders announce themselves (docs/tac-plan.md, build step 3).
-        internal static void AppendJson(StringBuilder sb)
+        // The board's part of the slice TacSession publishes; "sq" is the squadron roster (the
+        // matrix columns).
+        internal static void AppendJson(StringBuilder sb, List<string> squadrons)
         {
             sb.Append("\"board\":[");
             for (int i = 0; i < _board.Count; i++)
@@ -134,7 +178,13 @@ namespace TacModule
                 }
                 sb.Append("]}");
             }
-            sb.Append("],\"sq\":[]");
+            sb.Append("],\"sq\":[");
+            for (int i = 0; i < squadrons.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                TacJson.AppendString(sb, squadrons[i]);
+            }
+            sb.Append(']');
         }
     }
 }

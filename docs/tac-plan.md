@@ -156,21 +156,21 @@ UNASSIGNED → ASSIGNED (sent, nobody has pressed ENGAGING) → ENGAGED (ticket 
 ### Messages (extension-level protocol)
 
 All carried by the new API's per-extension messaging, so on the wire they're namespaced to this
-extension and can't be mistaken for NOXMFD's own squad messages. Sketch:
+extension and can't be mistaken for NOXMFD's own squad messages. Each is a JSON object
+`{"t": <type>, ...}`:
 
 | Message | Direction | Meaning |
 |---|---|---|
-| `claim` / `release` | holder → faction | "I hold / no longer hold TAC." Re-announced periodically so late joiners learn the holder. |
-| `hello` | leader → holder | "I lead a squad and run TAC": my squad's callsign/flight and my designation. Builds the officer's ASSIGN/PULL lists. |
-| `assign` / `unassign` | holder → assignee | Target id, name, priority. |
-| `priority` | holder → assignees | Priority changed. |
-| `engaging` | assignee → holder | On/off for one assigned target. |
+| `claim` / `release` | holder → faction | "I hold / no longer hold TAC." `claim` repeats every 3 s so late joiners learn the holder. |
+| `hello` | leader → holder | Answers each `claim`: "I lead a squad and run TAC". Carries nothing: the squad's callsign/flight come from the faction table. |
+| `tasks` | holder → leader | The squadron's **whole** target list (id, name, priority, engaged), sent whenever it changes and again after every `hello`. Assigning, unassigning, reprioritising and removing all reach the leader this way; a lost message or a new leader after a handover heals within one claim. |
+| `engaging` | leader → holder | On/off for one assigned target. |
 | `pull` / `pull-reply` | holder → leader → holder | Request for, and the leader's current lock list. |
 | `report` | leader → holder | One target to add to the board. |
 
-Trust follows the squad protocol's model: `assign`/`priority` accepted only from the current
-holder; `report`/`engaging`/`pull-reply` accepted only by the holder, only from a faction peer that
-announced itself as a squad leader (`hello`). The officer checks a `hello` against
+Trust follows the squad protocol's model: `tasks` accepted only from the current holder;
+`hello`/`report`/`engaging`/`pull-reply` accepted only by the holder, only from a faction peer
+that leads a squad. `claim` is believed only from a faction-mate outside any squad. The officer checks a `hello` against
 `Api.GetFactionPilots`: the sender must be the leader of the squad (callsign + flight) its own
 presence beat announces, which NOXMFD already broadcasts faction-wide.
 
@@ -185,10 +185,12 @@ board itself still starts empty and fills only from ADD, PULL and REPORT (decisi
    flight, designation). The officer's ASSIGN/PULL lists fill from these within a second or two.
 3. **`claim` repeats every few seconds.** Covers a leader who joins the match late, a player who
    creates a squad later, and a lost message; each new leader answers with its own `hello`.
-4. **Squad changes.** A leader sends a fresh `hello` when its squad changes (new callsign/flight,
-   disband, leadership passing on). A new leader starts sending `hello`; the old one stops — and
-   the officer re-sends the squadron's assignments to the new leader (decision 16).
-5. **Going stale.** A leader that stops answering `claim` drops out of the ASSIGN/PULL lists.
+4. **Squad changes.** The next `hello` after a change carries it, since the officer reads the
+   squad's callsign/flight from the faction table: a renamed squadron replaces its old column at
+   once, and a new leader's `hello` for a known squadron is a handover — the full `tasks` list,
+   ENGAGING included, goes to the new leader (decision 16).
+5. **Going stale.** A squadron whose leader hasn't answered for 10 s (three missed claims) leaves
+   the matrix, and its assignments are withdrawn.
 6. **Release.** When the officer releases TAC, leaves, changes faction, or joins a squad, their
    extension sends `release`, and every leader clears its assignments list.
 7. **Silent holder.** A crash or dropped connection never sends `release`, so every player treats
