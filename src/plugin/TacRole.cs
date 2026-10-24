@@ -9,8 +9,9 @@ namespace TacModule
     // the live glue that sends what it asks for and feeds it what arrives.
     internal sealed class TacRole
     {
-        internal const float ClaimIntervalSeconds = 3f;
-        internal const float OfficerTimeoutSeconds = 15f;
+        // NOXMFD's presence beat interval: a claim goes to every squad leader, so no faster than that.
+        internal const float ClaimIntervalSeconds = 5f;
+        internal const float OfficerTimeoutSeconds = 25f;   // five missed claims
 
         internal enum Tick { None, SendClaim, SendRelease }
         internal enum Link { None, Pending, Linked }

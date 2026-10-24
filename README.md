@@ -1,7 +1,7 @@
 # NOXMFD Extension: TAC
 
 [![NOXMFD](https://img.shields.io/badge/Requires-NOXMFD%200.77.0%2B-blue)](https://github.com/roke77/NOXMFD)
-[![Version](https://img.shields.io/badge/Version-0.1.0-green)](https://github.com/roke77/NOXMFD-Extension-TAC/releases)
+[![Version](https://img.shields.io/badge/Version-0.1.1-green)](https://github.com/roke77/NOXMFD-Extension-TAC/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Adds a **TAC** (Tactical Command) page to [NOXMFD](https://github.com/roke77/NOXMFD)'s browser MFD
@@ -61,8 +61,8 @@ NOXMFD. TAC is an experiment: if it proves useful, it may later become a native 
 
 <p><img src="docs/images/tac-link.png" alt="A squad leader picking an officer to link to" width="49%"> <img src="docs/images/tac-leader.png" alt="A linked squad leader's assignments and REPORT list" width="49%"></p>
 
-Squad members and other players see the faction's officers. The page needs a mission running; with
-no connection it shows NO SIGNAL.
+Players outside a squad can APPLY from the same page. The page needs a mission running; with no
+connection it shows NO SIGNAL.
 
 ---
 

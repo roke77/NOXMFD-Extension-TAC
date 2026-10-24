@@ -281,10 +281,10 @@ function otherText(r) {
     if (r.lk === 1) return { msg: 'LINKING…', taken: true, sub: 'Waiting for the officer to answer.' };
     return { msg: 'LINK TO A TAC OFFICER', taken: true, sub: 'Pick the officer to take assignments from.' };
   }
-  const msg = any ? 'TAC OFFICERS IN YOUR FACTION' : 'NO TAC OFFICER IN YOUR FACTION';
-  if (r.can) return { msg, taken: any, sub: 'Apply to become an officer.' };
-  if (r.sr === 2) return { msg, taken: any, sub: 'Your squad leader works with TAC.' };
-  return { msg, taken: any, sub: 'Join a faction to apply for TAC.' };
+  // Officers announce themselves to squad leaders only, so nobody else has a list to show.
+  if (r.can) return { msg: 'BECOME A TAC OFFICER', sub: 'Squad leaders link to you to take your assignments.' };
+  if (r.sr === 2) return { msg: 'SQUAD LEADERS WORK WITH TAC', sub: 'Your squad leader links to a TAC officer.' };
+  return { msg: 'NOT IN A FACTION', sub: 'Join a faction to apply for TAC.' };
 }
 
 function officerRowHtml(o, r) {
@@ -306,8 +306,9 @@ function renderRole() {
   if (key === lastOtherKey) return;
   lastOtherKey = key;
   const n = role.offs.length;
-  holderEl.textContent = n ? n + ' OFFICER' + (n === 1 ? '' : 'S') : '— NONE —';
+  holderEl.textContent = role.sr !== 1 ? '' : n ? n + ' OFFICER' + (n === 1 ? '' : 'S') : '— NONE —';
   holderEl.className = 'tac-holder' + (n ? '' : ' none');
+  holderEl.previousElementSibling.style.visibility = role.sr === 1 ? '' : 'hidden';   // the "TAC:" label
   const t = otherText(role);
   otherMsgEl.textContent = t.msg;
   otherSubEl.textContent = t.sub;

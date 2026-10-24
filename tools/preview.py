@@ -45,19 +45,20 @@ def seed():
             for n, (i, p, a) in enumerate(rows)]
 
 
-# role: mine (this player is an officer), free (no officers, may apply), taken (two officers, may
-# still apply), leader-free (a squad leader, no officers), leader-pick (a squad leader choosing an
-# officer), leader-taken (a squad leader linked to MAVERICK), member (a squad member).
+# role: mine (this player is an officer), free (outside a squad, may apply), taken (the same, with
+# officers on duty: none reach a non-leader), leader-free (a squad leader, no officers), leader-pick
+# (a squad leader choosing an officer), leader-taken (a squad leader linked to MAVERICK), member (a
+# squad member). Only squad leaders hear officers' claims, so only they get "offs".
 MAVERICK, OVERLORD = "76561198000000001", "76561198000000002"
 OFFICERS = [{"id": MAVERICK, "n": "MAVERICK"}, {"id": OVERLORD, "n": "OVERLORD 1-1"}]
 ROLES = {
-    "mine": {"mine": 1, "can": 0, "sr": 0, "offs": OFFICERS[1:]},
+    "mine": {"mine": 1, "can": 0, "sr": 0, "offs": []},
     "free": {"mine": 0, "can": 1, "sr": 0, "offs": []},
-    "taken": {"mine": 0, "can": 1, "sr": 0, "offs": OFFICERS},
+    "taken": {"mine": 0, "can": 1, "sr": 0, "offs": []},
     "leader-free": {"mine": 0, "can": 0, "sr": 1, "offs": []},
     "leader-pick": {"mine": 0, "can": 0, "sr": 1, "offs": OFFICERS},
     "leader-taken": {"mine": 0, "can": 0, "sr": 1, "offs": OFFICERS, "link": MAVERICK, "lk": 2},
-    "member": {"mine": 0, "can": 0, "sr": 2, "offs": OFFICERS},
+    "member": {"mine": 0, "can": 0, "sr": 2, "offs": []},
 }
 state = {"s": "board", "role": "mine", "link": "0", "lk": 0}
 board = seed()

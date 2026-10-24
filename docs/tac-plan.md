@@ -4,7 +4,7 @@
 
 Phase 1 released as TAC 0.1.0, requiring NOXMFD 0.77.0 (which ships API 8). It passed two
 two-player matches ([the test](two-player-test.md)); the first changed decisions 3, 4, 8 and 12 and
-added 24. See [Build order](#build-order-phase-1). This doc turns
+added 24. TAC 0.1.1 cuts its own network traffic (decision 25). See [Build order](#build-order-phase-1). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
 
@@ -40,8 +40,8 @@ board, not a mission planner. Full requirements in the ticket.
 3. **Any number of TAC officers per faction, and they must NOT be in a squad.** Any player in the
    faction with the extension can press **APPLY FOR TAC** (EXT → TAC); that grants the role
    directly, with no approval step, however many officers there already are. A squad leader or
-   squad member can't apply — TAC sits above the squads, not inside one. Everyone in the faction
-   sees the list of officers. Released explicitly (**RELEASE**), or automatically when the officer
+   squad member can't apply — TAC sits above the squads, not inside one. Squad leaders see the list
+   of officers (decision 25). Released explicitly (**RELEASE**), or automatically when the officer
    leaves, disconnects, changes faction, or joins/creates a squad. (Changed after the first
    two-player test: originally one officer per faction, with no takeover while the role was held.)
 4. **Board sources:** targets the officer **pulls** from what a squad leader has **reported**
@@ -110,6 +110,14 @@ board, not a mission planner. Full requirements in the ticket.
     `unlink` is sent, so a new leader who links to the same officer within the silence keeps the
     squadron's assignments (decision 16). Each officer's matrix shows only the squadrons linked to
     them.
+25. **TAC's own traffic stays near NOXMFD's presence beat.** An officer's `claim` goes every 5 s,
+    and only to squad leaders, the only players who act on it; squad members and squadless players
+    no longer see the list of officers. A squadron's task list is sent when it changes, on a new
+    link or handover, when the leader's `hello` asks for it (a link still waiting for its first
+    list), and after a failed send — never on a timer, since NOXMFD's sends are reliable. A failed
+    send is retried on the leader's next `hello`, never every tick. (Changed after a review of TAC's
+    message rates: claims went to every faction-mate every 3 s, and every `hello` brought the full
+    list again.)
 
 ## Phase 1 scope
 
@@ -179,10 +187,10 @@ extension and can't be mistaken for NOXMFD's own squad messages. Each is a JSON 
 
 | Message | Direction | Meaning |
 |---|---|---|
-| `claim` / `release` | officer → faction | "I am / am no longer a TAC officer." `claim` repeats every 3 s so late joiners learn the officers. |
-| `hello` | leader → officer | Sent at once on LINK, then in answer to each of that officer's `claim`s: "I lead a squad and link to you". Carries nothing: the squad's callsign/flight come from the faction table. |
+| `claim` / `release` | officer → squad leaders | "I am / am no longer a TAC officer." `claim` repeats every 5 s so late joiners and new leaders learn the officers. |
+| `hello` | leader → officer | Sent at once on LINK, then in answer to each of that officer's `claim`s: "I lead a squad and link to you". Carries only `sync` while the link waits for its first task list; the squad's callsign/flight come from the faction table. |
 | `unlink` | leader → officer | The leader linked to another officer or pressed UNLINK: the squadron leaves this officer's matrix now. |
-| `tasks` | officer → leader | The squadron's **whole** target list (id, name, priority, engaged), sent whenever it changes and again after every `hello`; the first one confirms a new link. Assigning, unassigning, reprioritising and removing all reach the leader this way; a lost message or a new leader after a handover heals within one claim. |
+| `tasks` | officer → leader | The squadron's **whole** target list (id, name, priority, engaged), sent when it changes, on a new link or handover, to a `sync` hello, and after a failed send (decision 25); the first one confirms a new link. Assigning, unassigning, reprioritising and removing all reach the leader this way. |
 | `engaging` | leader → officer | On/off for one assigned target. |
 | `report` | leader → officer | One locked enemy for the squadron's PULL bucket. |
 
@@ -197,22 +205,23 @@ presence beat announces, which NOXMFD already broadcasts faction-wide.
 How the officer learns which squadrons exist (the ASSIGN ▼ / PULL FROM SQUAD ▼ lists). The target
 board itself still starts empty and fills only from ADD and PULL (decision 4).
 
-1. **A player takes TAC.** Their extension sends `claim` to every faction-mate running NOXMFD, and
+1. **A player takes TAC.** Their extension sends `claim` to every squad leader running NOXMFD, and
    every leader's page lists them as an officer to LINK to.
 2. **Leaders link.** A leader who presses LINK sends that officer `hello`; the officer's matrix
    gains the squadron's column, and its `tasks` reply confirms the link (decision 24).
-3. **`claim` repeats every few seconds.** Covers a leader who joins the match late and a lost
-   message; each linked leader answers its officer's `claim` with `hello`.
+3. **`claim` repeats every 5 s.** Covers a leader who joins the match late or creates a squad later;
+   each linked leader answers its officer's `claim` with `hello`, which keeps the squadron alive on
+   the officer's matrix.
 4. **Squad changes.** The next `hello` after a change carries it, since the officer reads the
    squad's callsign/flight from the faction table: a renamed squadron replaces its old column at
    once, and a new leader's `hello` for a known squadron is a handover — the full `tasks` list,
    ENGAGING included, goes to the new leader (decision 16).
-5. **Going stale.** A squadron whose leader hasn't answered for 10 s (three missed claims) leaves
+5. **Going stale.** A squadron whose leader hasn't answered for 15 s (three missed claims) leaves
    the matrix, and its assignments are withdrawn.
 6. **Release.** When an officer releases TAC, leaves, changes faction, or joins a squad, their
    extension sends `release`; leaders linked to them lose the link and clear their assignments.
 7. **Silent officer.** A crash or dropped connection never sends `release`, so every player drops
-   an officer once it hears no `claim` from them for ~15 s, with the same effect on linked leaders.
+   an officer once it hears no `claim` from them for 25 s, with the same effect on linked leaders.
    A leader that changes faction likewise stops answering and drops off the officer's matrix
    (step 5).
 

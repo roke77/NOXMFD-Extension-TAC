@@ -8,8 +8,8 @@ namespace TacModule
     // identity when its leadership changes hands. Pure: time is passed in; tools/tests drives it.
     internal sealed class TacRoster
     {
-        // Leaders answer every claim (3 s apart); three missed answers and the squadron is gone.
-        internal const float SilentSeconds = 10f;
+        // Leaders answer every claim (5 s apart); three missed answers and the squadron is gone.
+        internal const float SilentSeconds = 15f;
 
         internal enum Heard { Known, New, HandedOver }
 

@@ -25,7 +25,7 @@
     <AssemblyName>NOXMFD.TacModule</AssemblyName>
     <Product>NOXMFD: TAC Module Extension</Product>
     <Description>TAC mission-control target board for NOXMFD, as an extension</Description>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>TacModule</RootNamespace>

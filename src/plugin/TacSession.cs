@@ -13,13 +13,17 @@ namespace TacModule
     // officer, and publishes the page's slice. Everything here runs on the Unity main thread:
     // TacWorker.Update, the command handler and the message handler.
     //
-    // Messages ({"t": type, ...}, NOXMFD's ext.tac wire type):
-    //   claim / release   officer -> faction      who is a TAC officer (every 3 s while one)
+    // Messages ({"t": type, ...}, NOXMFD's ext.tac wire type), all sent reliably by NOXMFD, so none is
+    // repeated to heal a loss:
+    //   claim / release   officer -> squad leaders  who is a TAC officer (every 5 s while one); only
+    //                                               leaders act on it, so nobody else is sent it
     //   hello             leader -> officer       from a leader linked to that officer: at once on LINK,
-    //                                             then answering each of its claims
+    //                                             then answering each of its claims; "sync" while the
+    //                                             link waits for its first task list
     //   unlink            leader -> officer       the leader linked elsewhere or pressed UNLINK
-    //   tasks             officer -> leader       the squadron's whole target list, on change and per
-    //                                             hello; the first one confirms a new link
+    //   tasks             officer -> leader       the squadron's whole target list: when it changes, on a
+    //                                             new link or handover, to a "sync" hello, and after a
+    //                                             failed send; the first one confirms a new link
     //   engaging          leader -> officer       ENGAGING on/off for one assigned target
     //   report            leader -> officer       REPORT: one of the leader's locked enemies, into its PULL bucket
     internal static class TacSession
@@ -34,9 +38,11 @@ namespace TacModule
         private static readonly TacRole _role = new TacRole();
         private static readonly TacRoster _roster = new TacRoster();
         private static readonly Dictionary<string, string> _sentTasks = new Dictionary<string, string>(StringComparer.Ordinal);
+        // Squadrons whose last task-list send failed: retried on the leader's next hello (one claim
+        // interval), never per tick — a failing send can mean Steam re-dialling a broken session.
+        private static readonly HashSet<string> _unsynced = new HashSet<string>(StringComparer.Ordinal);
         private static readonly List<string> _dropped = new List<string>();
         private static readonly HashSet<ulong> _badSenders = new HashSet<ulong>();
-        private static readonly Dictionary<string, string> _loggedTasks = new Dictionary<string, string>(StringComparer.Ordinal);
         private static float _nextTick;
         private static int _noteSeq;
         private static string _note = "";
@@ -56,6 +62,7 @@ namespace TacModule
             public uint id;
             public string n = "";
             public bool on;
+            public bool sync;   // hello: the leader has no task list from this officer yet
             public TacLeader.Task[]? l;
         }
 
@@ -88,10 +95,10 @@ namespace TacModule
             switch (_role.Update(self, inSquad, Faction(), now, _gone))
             {
                 case TacRole.Tick.SendClaim:
-                    Broadcast("claim");
+                    SendToLeaders("claim");
                     break;
                 case TacRole.Tick.SendRelease:
-                    Broadcast("release");
+                    SendToLeaders("release");
                     Note(inSquad ? "TAC released: you joined a squad" : "TAC released: you left the faction");
                     Info(inSquad ? "role released: you joined a squad" : "role released: you left the faction (now: " + (Faction() ?? "none") + ")");
                     break;
@@ -145,7 +152,7 @@ namespace TacModule
                 }
                 case "release":
                     if (!_role.Release(self)) return;
-                    Broadcast("release");
+                    SendToLeaders("release");
                     Info("you released TAC");
                     break;
                 case "link":
@@ -163,7 +170,7 @@ namespace TacModule
                         return;
                     }
                     if (previous != 0) Api.SendMessage(Plugin.ExtId, previous, MessageJson("unlink"));
-                    bool sent = Api.SendMessage(Plugin.ExtId, officer, MessageJson("hello"));
+                    bool sent = Api.SendMessage(Plugin.ExtId, officer, HelloJson());
                     Info($"linking to TAC officer {Who(officer)}" + (previous != 0 ? $", leaving {Who(previous)}" : "") +
                          $": hello {(sent ? "sent" : "send refused")}, waiting for their task list");
                     break;
@@ -228,7 +235,7 @@ namespace TacModule
                     if (_role.OnClaim(from, self, now)) Info($"TAC officer {Who(from)} is available");
                     if (_role.Linked == from && TacLeader.IsLeader())
                     {
-                        bool sent = Api.SendMessage(Plugin.ExtId, from, MessageJson("hello"));
+                        bool sent = Api.SendMessage(Plugin.ExtId, from, HelloJson());
                         Once("hello-out|" + from, $"answering {Who(from)}'s claims with hello as {TacLeader.SquadronKey()} ({(sent ? "sent" : "send refused")})");
                     }
                     break;
@@ -262,7 +269,10 @@ namespace TacModule
                     foreach (string sq in _dropped) DropSquadron(sq, $"its leader {Who(from)} now leads {key}");
                     if (heard == TacRoster.Heard.New) Info($"squadron {key} joined the matrix (leader {Who(from)})");
                     else if (heard == TacRoster.Heard.HandedOver) Info($"squadron {key} handed over to {Who(from)} — re-sending its tasks");
-                    _sentTasks.Remove(key);   // every hello gets the full list: a handover or a lost message heals here
+                    // The full list again only when this leader lacks it: new, handed over, asking
+                    // (a re-link), or after a failed send. Otherwise it already has the latest.
+                    bool failedBefore = _unsynced.Remove(key);
+                    if (heard != TacRoster.Heard.Known || m.sync || failedBefore) _sentTasks.Remove(key);
                     SyncTasks();
                     break;
                 }
@@ -274,16 +284,13 @@ namespace TacModule
                         Info($"link to TAC officer {Who(from)} confirmed");
                         Note("Linked to TAC " + Label(sender));
                     }
-                    int before = TacLeader.Count;
                     TacLeader.SetTasks(m.l);
-                    if (TacLeader.Count != before) Diag($"tasks from {Who(from)}: {TacLeader.Count} target(s) (was {before})");
                     break;
                 }
                 case "engaging":
                 {
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
-                    Diag($"engaging {(m.on ? "on" : "off")} for target {m.id} from {Who(from)} ({squadron ?? "not on the roster"})");
                     if (squadron != null && TacBoard.SetEngaged(m.id, squadron, m.on)) OnBoardChanged();
                     break;
                 }
@@ -294,12 +301,12 @@ namespace TacModule
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
                     bool enemy = TacGame.IsEnemy(m.id);
-                    string verdict = squadron == null ? "ignored, not on the roster"
-                        : !enemy ? "ignored, not an enemy (or gone) here"
-                        : TacBoard.Has(m.id) ? "ignored, already on the board"
-                        : _reports.Add(squadron, m.id, TacJson.Clip(m.n, TacBoard.MaxNameLength)) ? $"waiting in {squadron}'s PULL ({_reports.Count(squadron)})"
-                        : "already waiting in its PULL";
-                    Diag($"REPORT of '{m.n}' ({m.id}) from {Who(from)}: {verdict}");
+                    string? refused = squadron == null ? "not on the roster"
+                        : !enemy ? "not an enemy (or gone) here"
+                        : TacBoard.Has(m.id) ? "already on the board"
+                        : null;
+                    if (refused != null) Info($"REPORT of '{m.n}' ({m.id}) from {Who(from)} ignored: {refused}");
+                    else _reports.Add(squadron!, m.id, TacJson.Clip(m.n, TacBoard.MaxNameLength));
                     break;
                 }
             }
@@ -310,7 +317,7 @@ namespace TacModule
         // A new scene: the last match's role, roster and board are gone (decision 11).
         internal static void OnSceneLoaded()
         {
-            if (_role.IsMine(Api.LocalSteamId)) Broadcast("release");
+            if (_role.IsMine(Api.LocalSteamId)) SendToLeaders("release");
             _role.Reset();
             OnRoleMaybeChanged();
             Publish();
@@ -333,7 +340,7 @@ namespace TacModule
                 TacBoard.Clear();
                 _roster.Clear();
                 _sentTasks.Clear();
-                _loggedTasks.Clear();
+                _unsynced.Clear();
                 _reports.Clear();
             }
             _wasMine = mine;
@@ -352,25 +359,18 @@ namespace TacModule
                 string tasks = TacBoard.TasksMessage(sq);
                 if (_sentTasks.TryGetValue(sq, out string? sent) && sent == tasks) continue;
                 if (!_roster.TryLeader(sq, out ulong leader)) continue;
-                if (!Api.SendMessage(Plugin.ExtId, leader, tasks))
-                {
-                    Once("tasksfail|" + sq + "|" + leader, $"tasks for {sq} to {Who(leader)}: send refused (retried each tick)");
-                    continue;
-                }
+                // Marked sent either way: a failure waits for the leader's next hello (_unsynced)
+                // rather than being retried every tick.
                 _sentTasks[sq] = tasks;
-                // Logged only when the list itself changed, not on the re-send that follows each hello.
-                if (!_loggedTasks.TryGetValue(sq, out string? logged) || logged != tasks)
-                {
-                    _loggedTasks[sq] = tasks;
-                    Diag($"tasks -> {sq} ({Who(leader)}): {tasks.Length} bytes");
-                }
+                if (Api.SendMessage(Plugin.ExtId, leader, tasks)) _unsynced.Remove(sq);
+                else if (_unsynced.Add(sq)) Once("tasksfail|" + sq + "|" + leader, $"tasks for {sq} to {Who(leader)}: send refused (retried on their next hello)");
             }
         }
 
         private static void DropSquadron(string squadron, string why)
         {
             _sentTasks.Remove(squadron);
-            _loggedTasks.Remove(squadron);
+            _unsynced.Remove(squadron);
             _reports.RemoveSquadron(squadron);
             bool withdrew = TacBoard.RemoveSquadron(squadron);
             if (withdrew) Note(squadron + " left — assignments withdrawn");
@@ -430,11 +430,6 @@ namespace TacModule
         internal static void Info(string msg) => Plugin.Log?.LogInfo("[TAC] " + msg);
         internal static void Once(string key, string msg) { if (_onceKeys.Add(key)) Info(msg); }
 
-        // ponytail: message-traffic diagnostics for the first two-player test, wall-clock stamped so
-        // two players' logs line up with each other and NOXMFD's [NOXMFD ext-link] lines. Remove
-        // (grep "Diag(") once TAC has shipped.
-        internal static void Diag(string msg) => Plugin.Log?.LogInfo($"[TAC diag {DateTime.Now:HH:mm:ss}] {msg}");
-
         internal static string Who(ulong steamId) =>
             steamId == 0 ? "nobody" : steamId == Api.LocalSteamId ? "you" : $"{Label(FindPilot(steamId))} ({steamId})";
 
@@ -445,11 +440,17 @@ namespace TacModule
             _noteSeq++;
         }
 
-        private static void Broadcast(string type)
+        // claim/release go to squad leaders only: they're the ones who link to an officer, and a
+        // claim every few seconds to every faction-mate is traffic nobody else acts on.
+        private static void SendToLeaders(string type)
         {
             string payload = MessageJson(type);
-            foreach (FactionPilot p in Api.GetFactionPilots()) Api.SendMessage(Plugin.ExtId, p.SteamId, payload);
+            foreach (FactionPilot p in Api.GetFactionPilots())
+                if (p.SquadLeaderId == p.SteamId) Api.SendMessage(Plugin.ExtId, p.SteamId, payload);
         }
+
+        private static string HelloJson() =>
+            _role.LinkState == TacRole.Link.Linked ? MessageJson("hello") : "{\"t\":\"hello\",\"sync\":true}";
 
         private static string MessageJson(string type) => "{\"t\":\"" + type + "\"}";
 

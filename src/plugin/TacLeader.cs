@@ -77,22 +77,16 @@ namespace TacModule
                     Task? t = _tasks.Find(x => x.id == c.id);
                     if (t == null) return;
                     t.e = c.on ? 1 : 0;   // shown at once; the officer's next "tasks" confirms it
-                    bool sent = Api.SendMessage(Plugin.ExtId, officer,
+                    Api.SendMessage(Plugin.ExtId, officer,
                         "{\"t\":\"engaging\",\"id\":" + Id(c.id) + ",\"on\":" + (c.on ? "true" : "false") + "}");
-                    TacSession.Diag($"ENGAGING {(c.on ? "on" : "off")} for '{t.n}' ({c.id}) -> {TacSession.Who(officer)}: {(sent ? "sent" : "send refused")}");
                     break;
                 }
                 case "acquire":
-                    if (_tasks.Exists(x => x.id == c.id))
-                        TacSession.Diag($"ACQUIRE {c.id}: {(Api.SelectTarget(c.id) ? "selected" : "not selected (NOXMFD logs why)")}");
+                    if (_tasks.Exists(x => x.id == c.id)) Api.SelectTarget(c.id);   // NOXMFD logs a refusal
                     break;
                 case "acquire-all":
-                {
-                    int selected = 0;
-                    foreach (Task t in _tasks) if (Api.SelectTarget(t.id)) selected++;
-                    TacSession.Diag($"ACQUIRE ALL: selected {selected} of {_tasks.Count} (the rest already selected or not selectable)");
+                    foreach (Task t in _tasks) Api.SelectTarget(t.id);
                     break;
-                }
                 case "report":
                 {
                     // Only one of this leader's own locked enemies, named as the game names it — never
@@ -104,7 +98,6 @@ namespace TacModule
                         TacSession.Info($"REPORT of {c.id} refused: not one of your locked enemies right now");
                         return;
                     }
-                    TacSession.Diag($"REPORT '{locks[i].Name}' ({c.id}) -> {TacSession.Who(officer)}");
                     // A target object with the message type added: {"id":..,"n":"..","t":"report"}.
                     var sb = TacJson.AppendTarget(new StringBuilder(), c.id, TacJson.Clip(locks[i].Name, MaxSentName));
                     Api.SendMessage(Plugin.ExtId, officer, sb.Append(",\"t\":\"report\"}").ToString());
