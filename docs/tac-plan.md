@@ -2,9 +2,9 @@
 
 ## Status
 
-Phase 1 built (build steps 1–3) and through a first two-player match (step 4), which changed
-decisions 3, 4, 8 and 12 and added 24; a re-run of [the test](two-player-test.md) with those changes
-is next. NOXMFD 0.77.0 ships API 8, and TAC requires it. See [Build order](#build-order-phase-1). This doc turns
+Phase 1 released as TAC 0.1.0, requiring NOXMFD 0.77.0 (which ships API 8). It passed two
+two-player matches ([the test](two-player-test.md)); the first changed decisions 3, 4, 8 and 12 and
+added 24. See [Build order](#build-order-phase-1). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
 
@@ -256,10 +256,11 @@ Already available and used as-is: `RegisterExtension` (+ its command handler), `
 3. **Role and messaging**, on `feature/tac-phase1`, one commit per piece as it works in the
    preview: claim/release, `hello` and the squadron roster, assign/unassign/priority delivery,
    ENGAGING, PULL and REPORT, the squad leader and everyone-else views, destroyed-target removal.
-   Built and checked in the preview; needs step 4.
+   Built and checked in the preview, then in step 4.
 4. **Two-player test** in a real match (decision 14, [`two-player-test.md`](two-player-test.md)), covering this extension and NOXMFD's API 8
    together. NOXMFD's API branch ships in a NOXMFD release only after it passes; this extension's
-   release follows, pinned to that NOXMFD version.
+   release follows, pinned to that NOXMFD version. Done: passed, NOXMFD 0.77.0 shipped API 8, and
+   TAC 0.1.0 requires it.
 
 ## Phase 2 (deferred)
 

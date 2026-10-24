@@ -11,12 +11,12 @@ board (ADD from their MAP selection, or PULL what a squad leader has REPORTed), 
 priority, and assigns it to the linked squadrons; squad leaders see their assignments, ACQUIRE them and mark
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
-**Status: in development.** Built on NOXMFD 0.77.0's extension API 8 (faction roster, own
-squad, messaging, target selection, LOCATE ON MAP). Phase 1 is built: any number of TAC officers,
+**Status: first release (0.1.0).** Built on NOXMFD 0.77.0's extension API 8 (faction roster, own
+squad, messaging, target selection, LOCATE ON MAP). Phase 1: any number of TAC officers,
 squad leaders linking to one, the officer's squadron matrix (ADD FROM MAP, PULL of what leaders
 REPORT, assignments, priority, LOCATE, REMOVE), the squad leader's page (ENGAGING, ACQUIRE, REPORT)
-and destroyed-target removal. It has passed a first two-player match; a re-run with the changes
-that match brought is next. The design and build order are in [`docs/tac-plan.md`](docs/tac-plan.md).
+and destroyed-target removal, tested in two-player matches. The design, build order and phase 2
+ideas are in [`docs/tac-plan.md`](docs/tac-plan.md).
 
 This extension is an experiment: try TAC with real players, gather feedback and refine it. If it
 proves useful, TAC may later become a native NOXMFD feature.
@@ -84,6 +84,7 @@ The build's `DeployToGame` target copies the built DLL straight into
 
 ## Installing
 
-1. Install BepInEx 5 and [NOXMFD](https://github.com/roke77/NOXMFD).
-2. Drop `NOXMFD.TacModule.dll` into `BepInEx/plugins/`.
+1. Install BepInEx 5 and [NOXMFD](https://github.com/roke77/NOXMFD) 0.77.0 or later.
+2. Drop `NOXMFD.TacModule.dll`, from the [latest release](https://github.com/roke77/NOXMFD-Extension-TAC/releases/latest)'s
+   zip, into `BepInEx/plugins/`.
 3. Launch the game — a **TAC** entry appears under NOXMFD's EXT nav.
