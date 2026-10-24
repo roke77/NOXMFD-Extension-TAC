@@ -30,7 +30,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>TacModule</RootNamespace>
     <DebugType>portable</DebugType>
-    <NoWarn>BepInEx002</NoWarn>
+    <!-- CS0649: the [Serializable] command/message classes are filled by JsonUtility through
+         reflection, which the compiler can't see. -->
+    <NoWarn>BepInEx002;CS0649</NoWarn>
     <RestoreAdditionalProjectSources>
       https://api.nuget.org/v3/index.json;
       https://nuget.bepinex.dev/v3/index.json;
@@ -42,7 +44,9 @@
     <!-- Own embedded web assets, mirroring NOXMFD's own src/plugin + src/web split
          (docs/src-architecture.md) — resource names still end in ".web.<dotted path>" regardless
          of the src\ prefix, resolved by TacPageAssets.cs's own suffix match. -->
-    <EmbeddedResource Include="src\web\**\*" Exclude="src\web\**\*.md" />
+    <EmbeddedResource Include="src\web\**\*" Exclude="src\web\**\*.md;src\web\**\*.test.js" />
+    <!-- tools/tests is its own project (TacTests.csproj) and must not compile into the plugin. -->
+    <Compile Remove="tools\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,6 +62,23 @@
          this plugin would double-load the assembly. -->
     <Reference Include="NOXMFD">
       <HintPath>lib\NOXMFD.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- The game's own assemblies, for what NOXMFD's API doesn't cover (the local faction, unit
+         lookups, the leader's target list). Compile-time only, like NOXMFD's own references: the
+         game already loads them. Mirage is needed because FactionHQ and Unit derive from its types. -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameDir)\NuclearOption_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirage">
+      <HintPath>$(GameDir)\NuclearOption_Data\Managed\Mirage.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Reads the messages between players: JsonUtility leaves arrays of objects empty in the game's
+         Mono runtime. The game ships and loads Newtonsoft.Json 13 itself. -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(GameDir)\NuclearOption_Data\Managed\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

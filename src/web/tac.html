@@ -5,12 +5,100 @@
   <title>TAC</title>
   <link rel="stylesheet" href="/assets/shared/font.css">
   <link rel="stylesheet" href="/assets/shared/theme.css">
-  <link rel="stylesheet" href="tac.css">
+  <link rel="stylesheet" href="/assets/shared/lit-panel.css">
+  <link rel="stylesheet" href="/ext/tac/tac.css">
 </head>
 <body>
-  <div class="mfd-empty" id="tac-empty">
-    <span class="mfd-empty-title">TAC</span>&mdash; COMING SOON &mdash;
+  <div class="tac-other" id="other">
+    <div class="tac-head">
+      <span class="tac-title">TAC</span>
+      <span class="tac-spacer"></span>
+      <span class="tac-label">TAC:</span>
+      <span class="tac-holder" id="holder"></span>
+    </div>
+    <div class="tac-other-body">
+      <span class="tac-other-lamp" id="other-lamp"></span>
+      <span class="tac-other-msg" id="other-msg"></span>
+      <span class="tac-other-sub" id="other-sub"></span>
+      <div class="tac-officers" id="officers"></div>
+      <button type="button" class="lit tac-apply" id="apply-btn">APPLY FOR TAC</button>
+      <span class="tac-flash tac-other-note" id="other-note" aria-live="polite"></span>
+    </div>
+    <div class="tac-rules">
+      <span class="tac-label">THE TAC ROLE</span>
+      <span>Officers: no squad, any number per faction · Squad leaders: link to one officer · The role ends on RELEASE, joining a squad or leaving the faction</span>
+    </div>
   </div>
-  <script src="tac.js"></script>
+
+  <div class="tac-lead" id="lead">
+    <div class="tac-head">
+      <span class="tac-title">TAC</span>
+      <span class="tac-spacer"></span>
+      <span class="tac-label">TAC:</span>
+      <span class="tac-holder" id="lead-holder"></span>
+      <button type="button" class="tac-btn tac-remove tac-release" id="unlink-btn">UNLINK</button>
+    </div>
+    <div class="tac-bar">
+      <span class="tac-lead-sq" id="lead-sq"></span>
+      <span class="tac-count" id="lead-count"></span>
+      <span class="tac-flash" id="lead-flash" aria-live="polite"></span>
+      <button type="button" class="tac-btn tac-add" id="acquire-all">ACQUIRE ALL</button>
+    </div>
+    <div class="tac-lead-list" id="lead-list"></div>
+    <div class="tac-report">
+      <div class="tac-report-head"><span class="tac-colh">REPORT TO TAC — MY ENEMY LOCKS</span><span class="tac-pop-sub">TAC picks which to pull</span></div>
+      <div class="tac-report-list" id="report-list"></div>
+    </div>
+  </div>
+
+  <div class="tac-page">
+    <div class="tac-head">
+      <span class="tac-title">TARGET CONTROL</span>
+      <span class="tac-spacer"></span>
+      <span class="tac-you">YOU ARE TAC</span>
+      <button type="button" class="tac-btn tac-remove tac-release" id="release-btn">RELEASE</button>
+    </div>
+
+    <div class="tac-bar">
+      <span class="tac-count" id="count"></span>
+      <span class="tac-flash" id="flash" aria-live="polite"></span>
+      <button type="button" class="tac-btn tac-add" id="add-btn" aria-haspopup="dialog">ADD FROM MAP ▼</button>
+    </div>
+
+    <div class="tac-matrix" id="matrix"></div>
+
+    <div class="tac-foot">
+      <div class="tac-sel">
+        <span class="tac-label">SELECTED</span>
+        <span class="tac-sel-name" id="sel-name"></span>
+        <span class="tac-label tac-sel-status-label">STATUS</span>
+        <span class="tac-sel-status" id="sel-status"></span>
+        <span class="tac-spacer"></span>
+        <button type="button" class="tac-btn tac-locate" id="locate-btn">LOCATE</button>
+        <button type="button" class="tac-btn tac-remove" id="remove-btn">REMOVE</button>
+      </div>
+      <div class="tac-pri-row">
+        <span class="tac-label">PRIORITY</span>
+        <div class="tac-pri-btns" id="pri-btns"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tac-scrim" id="scrim" hidden></div>
+  <div class="tac-pop" id="pop" role="dialog" aria-labelledby="pop-title" hidden>
+    <div class="tac-pop-head"><span class="tac-pop-title" id="pop-title"></span><span class="tac-pop-sub" id="pop-sub"></span></div>
+    <div class="tac-pop-list" id="pop-list"></div>
+    <div class="tac-pop-foot">
+      <button type="button" class="tac-btn tac-add" id="pop-all">ADD ALL</button>
+      <button type="button" class="tac-btn" id="pop-close">CLOSE</button>
+    </div>
+  </div>
+
+  <div class="mfd-empty" id="no-mission">
+    <span class="mfd-empty-title">TAC</span>— NO SIGNAL —
+  </div>
+
+  <script src="/ext/tac/tac-board.js"></script>
+  <script type="module" src="/ext/tac/tac.js"></script>
 </body>
 </html>

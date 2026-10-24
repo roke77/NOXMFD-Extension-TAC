@@ -1,2 +1,357 @@
-/* Placeholder — no page-specific styling yet. Reuses NOXMFD's shared theme.css (.mfd-empty)
-   for the "coming soon" state. */
+/* TAC officer page (docs/tac-plan.md): the squadron matrix in NOXMFD's Lit Panel look — lamp
+   pushbuttons (shared/lit-panel.css), boxed tags, the shared --no-* colour tokens (colors.css). */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%;
+  background: var(--no-bg);
+  color: var(--no-green);
+  font-family: var(--no-font);
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.tac-page {
+  --gap: clamp(6px, 1.6vh, 14px);
+  --pin-name: clamp(130px, 22vw, 260px);
+  --pin-obs: clamp(84px, 9vw, 110px);
+  --pin-pri: clamp(78px, 8vw, 100px);
+  --cell: clamp(84px, 10vw, 120px);
+  height: 100%;
+  display: flex; flex-direction: column;
+  gap: var(--gap);
+  padding: clamp(6px, 1.8vmin, 16px) clamp(34px, 5vw, 48px) clamp(10px, 2.4vmin, 22px);
+}
+
+.tac-label { font-size: clamp(9px, 1.5vmin, 13px); letter-spacing: 0.25em; color: var(--no-control-text-off); white-space: nowrap; }
+.tac-spacer { flex: 1 1 auto; }
+
+.tac-head {
+  display: flex; align-items: center; gap: 14px;
+  border-bottom: 1px solid var(--no-green-dark);
+  padding-bottom: clamp(2px, 0.8vh, 8px);
+}
+.tac-title { font-size: clamp(14px, 3.2vmin, 26px); letter-spacing: 0.16em; white-space: nowrap; }
+
+.tac-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tac-count { font-size: clamp(10px, 1.7vmin, 15px); letter-spacing: 0.2em; color: var(--no-control-text-off); white-space: nowrap; }
+.tac-count b { color: var(--no-amber); font-weight: normal; }
+.tac-count i { color: var(--no-squad); font-style: normal; }
+.tac-flash {
+  flex: 1 1 auto; min-width: 0; padding: 0 8px; text-align: right;
+  font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.06em; color: var(--no-green-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Outlined action buttons (ATC's .atc-action): label colour by default, green for ADD, red for REMOVE. */
+.tac-btn {
+  font-family: var(--no-font);
+  height: clamp(32px, 6vmin, 46px);
+  padding: 0 clamp(10px, 2vmin, 18px);
+  background: transparent;
+  color: var(--no-label);
+  border: 1px solid var(--no-label);
+  border-radius: 4px;
+  font-size: clamp(9px, 1.7vmin, 15px);
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tac-btn:active { background: rgba(var(--no-green-rgb), 0.08); }
+.tac-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.tac-btn:focus-visible { outline: 2px solid var(--no-amber); outline-offset: 2px; }
+.tac-add { color: var(--no-green); border-color: var(--no-green); }
+.tac-remove { color: var(--no-red); border-color: var(--no-red); }
+
+/* ── Matrix ──────────────────────────────────────────────────────────────────────────────────
+   TARGET/OBS/PRI (.tac-pin) stay pinned left and the header row stays pinned on top, so the
+   squadron columns scroll sideways once there are more than fit. isolation keeps those pinned
+   layers inside the matrix, under the ADD/PULL panel. */
+.tac-matrix {
+  flex: 1 1 auto; min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  isolation: isolate;
+  border-top: 1px solid var(--no-green-dark);
+}
+
+/* Every scrolling list here: NOXMFD's thin grey thumb on a transparent track (tgt.css, td.css). */
+.tac-matrix, .tac-pop-list, .tac-lead-list, .tac-report-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--no-gray) transparent;
+}
+.tac-matrix::-webkit-scrollbar, .tac-pop-list::-webkit-scrollbar,
+.tac-lead-list::-webkit-scrollbar, .tac-report-list::-webkit-scrollbar { width: 6px; height: 6px; }
+.tac-matrix::-webkit-scrollbar-track, .tac-pop-list::-webkit-scrollbar-track,
+.tac-lead-list::-webkit-scrollbar-track, .tac-report-list::-webkit-scrollbar-track { background: transparent; }
+.tac-matrix::-webkit-scrollbar-thumb, .tac-pop-list::-webkit-scrollbar-thumb,
+.tac-lead-list::-webkit-scrollbar-thumb, .tac-report-list::-webkit-scrollbar-thumb { background: var(--no-gray); border-radius: 3px; }
+
+.tac-mhead, .tac-row {
+  display: flex; gap: 8px;
+  width: max-content; min-width: 100%;
+  padding-right: 12px;
+}
+.tac-mhead {
+  position: sticky; top: 0; z-index: 2;
+  align-items: end;
+  background: var(--no-bg);
+  border-bottom: 1px solid var(--no-green-dark);
+}
+.tac-row {
+  align-items: center;
+  min-height: clamp(44px, 7vmin, 60px);
+  border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10);
+}
+.tac-pin {
+  position: sticky; left: 0; z-index: 1;
+  flex: 0 0 auto; align-self: stretch;
+  display: grid; grid-template-columns: var(--pin-name) var(--pin-obs) var(--pin-pri);
+  gap: 8px; align-items: center;
+  padding: 6px 8px 6px 12px;
+  background: var(--no-bg);
+  box-shadow: 1px 0 0 var(--no-green-dark), 10px 0 10px -6px rgba(var(--no-black-rgb), 0.9);
+}
+.tac-mhead .tac-pin { align-items: end; padding-bottom: 14px; }
+.tac-colh { font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.2em; color: var(--no-green-dim); }
+
+/* The selected row: TGT's amber border, one solid rectangle. The pinned block paints over the row,
+   so it draws its own top, bottom and left edges and the row draws top, bottom and right; both
+   repeat the tint as a solid colour so the cells scrolling under the pin don't show through. */
+.tac-row.selected {
+  --row-tint: color-mix(in srgb, var(--no-amber) 6%, var(--no-bg));
+  --row-edge: 2px;
+  background: var(--row-tint);
+  box-shadow: inset 0 var(--row-edge) 0 var(--no-amber), inset 0 calc(-1 * var(--row-edge)) 0 var(--no-amber),
+    inset calc(-1 * var(--row-edge)) 0 0 var(--no-amber);
+}
+.tac-row.selected .tac-pin {
+  background: var(--row-tint);
+  box-shadow: inset 0 var(--row-edge) 0 var(--no-amber), inset 0 calc(-1 * var(--row-edge)) 0 var(--no-amber),
+    inset var(--row-edge) 0 0 var(--no-amber), 1px 0 0 var(--no-green-dark), 10px 0 10px -6px rgba(var(--no-black-rgb), 0.9);
+}
+
+.tac-name {
+  display: block; min-width: 0; height: 100%; min-height: 40px;
+  padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer;
+  font-family: var(--no-font); font-size: clamp(12px, 2.1vmin, 18px); letter-spacing: 0.06em;
+  color: var(--no-white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tac-name:focus-visible { outline: 2px solid var(--no-amber); outline-offset: 2px; }
+.tac-obs {
+  justify-self: start;
+  padding: 0.2em 0.45em;
+  font-size: clamp(8px, 1.3vmin, 12px); letter-spacing: 0.1em;
+  color: var(--no-green-dim); border: 1px solid var(--no-green-dark);
+}
+.tac-obs.stale { color: var(--no-label); border: 1px dashed var(--no-gray); }
+.tac-pri { display: flex; align-items: center; gap: 6px; font-size: clamp(9px, 1.5vmin, 13px); letter-spacing: 0.1em; }
+.tac-pri::before { content: ''; width: 4px; height: 1.2em; border-radius: 1px; background: currentColor; }
+.p0 { color: var(--no-text-faint); }
+.p1 { color: var(--no-label); }
+.p2 { color: var(--no-amber); }
+.p3 { color: var(--no-red); }
+
+/* Squadron column header: callsign + flight in squad teal, PULL under it. */
+.tac-sqh {
+  flex: 1 0 var(--cell);
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  min-width: 0; padding: 8px 0;
+}
+.tac-sqname { text-align: center; font-size: clamp(10px, 1.6vmin, 14px); letter-spacing: 0.06em; color: var(--no-squad); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tac-pull {
+  font-family: var(--no-font);
+  height: clamp(30px, 5.4vmin, 40px);
+  border: 1px solid var(--no-green-line); border-radius: 4px; background: transparent;
+  color: var(--no-green-dim); font-size: clamp(8px, 1.3vmin, 12px); letter-spacing: 0.15em; cursor: pointer;
+}
+.tac-pull:focus-visible { outline: 2px solid var(--no-amber); outline-offset: 2px; }
+/* Reports waiting in this squadron's PULL bucket. */
+.tac-pull.has { border-color: var(--no-amber); color: var(--no-amber); }
+.tac-pull-n { margin-left: 6px; padding: 0 5px; border-radius: 3px; background: var(--no-amber); color: var(--no-bg); letter-spacing: 0; }
+.tac-nosq {
+  flex: 1 1 auto; align-self: center; padding: 8px 12px;
+  font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.15em; color: var(--no-text-faint);
+}
+
+/* Assignment cells: a lamp pushbutton per squadron. Unlit = not assigned; teal = ASSIGNED;
+   glowing green = ENGAGED. touch-action keeps a swipe across the cells scrolling the matrix. */
+.tac-cell {
+  flex: 1 0 var(--cell);
+  height: clamp(36px, 6vmin, 46px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  padding: 0;
+  background: var(--no-control-bg);
+  border: 1px solid var(--no-line);
+  border-radius: 5px;
+  font-family: var(--no-font); font-size: clamp(8px, 1.2vmin, 11px); font-weight: bold; letter-spacing: 0.2em;
+  color: var(--no-text-faint);
+  cursor: pointer;
+  touch-action: pan-x pan-y;
+}
+.tac-cell::before { content: ''; width: 30px; height: 4px; border-radius: 2px; background: var(--no-lamp-off); }
+.tac-cell.asgn, .tac-cell.engd { color: var(--no-white); border-color: var(--no-gray); }
+.tac-cell.asgn::before { background: var(--no-squad); }
+.tac-cell.engd::before { background: var(--no-green); box-shadow: 0 0 8px var(--no-green), 0 0 2px var(--no-green); }
+.tac-cell.holding { border-color: var(--no-amber); }
+.tac-cell:focus-visible { outline: 2px solid var(--no-amber); outline-offset: 2px; }
+
+.tac-empty {
+  padding: 48px 12px; text-align: center;
+  font-size: clamp(10px, 1.7vmin, 15px); letter-spacing: 0.2em; color: var(--no-green-dim);
+}
+
+/* ── Bottom section: the selected target, LOCATE/REMOVE, priority ────────────────────────────── */
+.tac-foot {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--no-green-dark);
+}
+.tac-sel { display: flex; align-items: center; gap: 12px; min-width: 0; white-space: nowrap; }
+.tac-sel-name { min-width: 0; font-size: clamp(13px, 2.6vmin, 22px); letter-spacing: 0.06em; color: var(--no-white); overflow: hidden; text-overflow: ellipsis; }
+.tac-sel-name.none { color: var(--no-text-faint); }
+.tac-sel-status-label { margin-left: 14px; }
+.tac-sel-status { font-size: clamp(10px, 1.9vmin, 16px); letter-spacing: 0.12em; }
+.tac-sel-status.s0 { color: var(--no-control-text-off); }
+.tac-sel-status.s1 { color: var(--no-label); }
+.tac-sel-status.s2 { color: var(--no-green); }
+.tac-sel .tac-btn { flex: 0 0 auto; width: clamp(96px, 16vmin, 150px); }
+
+.tac-pri-row { display: grid; grid-template-columns: clamp(80px, 12vmin, 110px) minmax(0, 1fr); gap: 10px; align-items: center; }
+.tac-pri-btns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tac-pri-btn {
+  --lamp-w: 2.2em;
+  gap: clamp(4px, 0.8vmin, 8px);
+  height: clamp(36px, 6.4vmin, 54px);
+  font-size: clamp(9px, 1.6vmin, 14px);
+  letter-spacing: 0.12em;
+}
+.tac-pri-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── ADD / PULL panel ───────────────────────────────────────────────────────────────────────── */
+.tac-scrim { position: fixed; inset: 0; z-index: 10; background: var(--no-scrim-deep); }
+.tac-scrim[hidden], .tac-pop[hidden] { display: none; }
+.tac-pop {
+  position: fixed; z-index: 11;
+  left: 50%; top: clamp(40px, 15vh, 150px); transform: translateX(-50%);
+  width: min(650px, calc(100vw - 2 * clamp(34px, 5vw, 48px)));
+  max-height: calc(100vh - 2 * clamp(40px, 15vh, 150px));
+  display: flex; flex-direction: column; gap: 10px;
+  padding: clamp(10px, 1.8vmin, 16px) clamp(12px, 2vmin, 18px);
+  background: var(--no-bg);
+  border: 1px solid var(--no-green); border-radius: 6px;
+  box-shadow: 0 0 24px rgba(var(--no-green-rgb), 0.18);
+}
+.tac-pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.tac-pop-title { font-size: clamp(11px, 2vmin, 17px); letter-spacing: 0.18em; }
+.tac-pop-sub { font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.06em; color: var(--no-control-text-off); }
+.tac-pop-list {
+  min-height: 0; overflow-y: auto;
+  border-top: 1px solid var(--no-green-dark);
+}
+.tac-pop-item {
+  display: flex; align-items: center; gap: 12px;
+  min-height: clamp(42px, 7vmin, 54px); padding: 0 6px;
+  border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10);
+}
+.tac-pop-name { flex: 1 1 auto; min-width: 0; font-size: clamp(12px, 2.1vmin, 18px); letter-spacing: 0.06em; color: var(--no-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tac-pop-item.on .tac-pop-name { color: var(--no-control-text-off); }
+.tac-pop-tag { font-size: clamp(9px, 1.5vmin, 13px); letter-spacing: 0.1em; color: var(--no-green-dim); white-space: nowrap; }
+.tac-pop-item .tac-btn { min-width: clamp(80px, 14vmin, 120px); }
+.tac-pop-note { padding: 18px 6px; font-size: clamp(10px, 1.6vmin, 14px); letter-spacing: 0.08em; color: var(--no-control-text-off); }
+.tac-pop-foot { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ── Header role controls ────────────────────────────────────────────────────────────────────── */
+.tac-you { font-size: clamp(9px, 1.5vmin, 13px); letter-spacing: 0.15em; color: var(--no-amber); white-space: nowrap; }
+.tac-release { height: clamp(28px, 5vmin, 40px); }
+
+/* ── Everyone else: the faction's officers, LINK for a squad leader, APPLY without a squad ──── */
+.tac-other {
+  height: 100%;
+  display: none; flex-direction: column;
+  gap: var(--gap, 14px);
+  padding: clamp(6px, 1.8vmin, 16px) clamp(34px, 5vw, 48px) clamp(10px, 2.4vmin, 22px);
+}
+.tac-holder { font-size: clamp(12px, 2.1vmin, 18px); letter-spacing: 0.1em; color: var(--no-white); white-space: nowrap; }
+.tac-holder.none { color: var(--no-control-text-off); }
+.tac-holder.mine { color: var(--no-amber); }
+.tac-other-body {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  text-align: center;
+}
+.tac-other-lamp { width: 60px; height: 5px; border-radius: 2px; background: var(--no-lamp-off); }
+.tac-other-lamp.taken { background: var(--no-squad); box-shadow: 0 0 6px var(--no-squad); }
+.tac-other-msg { font-size: clamp(14px, 3.2vmin, 30px); letter-spacing: 0.12em; color: var(--no-label); }
+.tac-other-sub { max-width: 600px; font-size: clamp(10px, 1.8vmin, 16px); line-height: 1.5; letter-spacing: 0.05em; color: var(--no-control-text-off); }
+.tac-apply {
+  --lamp-w: 3em;
+  margin-top: 22px;
+  width: min(360px, 80%);
+  height: clamp(56px, 9vmin, 84px);
+  gap: 12px;
+  font-size: clamp(13px, 2.4vmin, 22px);
+  letter-spacing: 0.2em;
+}
+.tac-apply[hidden] { display: none; }
+.tac-other-note { flex: 0 0 auto; text-align: center; }
+/* The faction's officers; a squad leader links to one of them here. */
+.tac-officers { width: min(600px, 100%); display: flex; flex-direction: column; }
+.tac-officers:empty { display: none; }
+.tac-off-row { display: flex; align-items: center; gap: 12px; min-height: clamp(46px, 7.4vmin, 58px); padding: 0 12px; border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); text-align: left; }
+.tac-off-row:first-child { border-top: 1px solid var(--no-green-dark); }
+.tac-off-row .tac-btn { min-width: clamp(90px, 14vmin, 130px); }
+.tac-rules {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 14px; border-top: 1px solid var(--no-green-dark);
+  font-size: clamp(9px, 1.5vmin, 13px); line-height: 1.6; letter-spacing: 0.05em; color: var(--no-control-text-off);
+}
+
+/* ── Squad leader: my squadron's assignments, ENGAGING / ACQUIRE, REPORT ──────────────────────── */
+.tac-lead {
+  height: 100%;
+  display: none; flex-direction: column;
+  gap: var(--gap, 14px);
+  padding: clamp(6px, 1.8vmin, 16px) clamp(34px, 5vw, 48px) clamp(10px, 2.4vmin, 22px);
+}
+.tac-lead-sq { font-size: clamp(13px, 2.4vmin, 20px); letter-spacing: 0.1em; color: var(--no-squad); white-space: nowrap; }
+.tac-lead-list, .tac-report-list { min-height: 0; overflow-y: auto; }
+.tac-lead-list { flex: 1 1 55%; border-top: 1px solid var(--no-green-dark); }
+.tac-lead-head, .tac-lead-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(90px, 13vw, 130px) clamp(120px, 17vw, 170px) clamp(100px, 15vw, 150px);
+  gap: 12px; align-items: center; padding: 0 12px;
+}
+.tac-lead-head { height: 32px; border-bottom: 1px solid var(--no-green-dark); }
+.tac-lead-row { min-height: clamp(52px, 8vmin, 68px); border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); }
+.tac-lead-name { font-size: clamp(13px, 2.3vmin, 20px); letter-spacing: 0.06em; color: var(--no-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tac-engaging {
+  --accent: var(--no-green); --lamp-w: 2.4em;
+  height: clamp(40px, 6.6vmin, 52px); gap: 8px;
+  font-size: clamp(9px, 1.6vmin, 14px); letter-spacing: 0.12em;
+}
+.tac-lead-row .tac-btn { height: clamp(40px, 6.6vmin, 52px); }
+.tac-lead-empty, .tac-report-empty { padding: 28px 12px; text-align: center; font-size: clamp(10px, 1.6vmin, 14px); letter-spacing: 0.12em; color: var(--no-green-dim); }
+
+.tac-report { flex: 1 1 45%; min-height: 0; display: flex; flex-direction: column; }
+.tac-report-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--no-green-dark); }
+.tac-report-row { display: flex; align-items: center; gap: 12px; min-height: clamp(46px, 7.4vmin, 58px); padding: 0 12px; border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); }
+.tac-report-row .tac-pop-name { flex: 1 1 auto; }
+.tac-report-row .tac-btn { min-width: clamp(90px, 14vmin, 130px); }
+
+/* An officer sees their board; a squad leader linked to an officer sees their assignments;
+   anyone else (a leader still picking an officer included) sees the role view. */
+body:not(.mine) .tac-page { display: none; }
+body:not(.mine):not(.lead):not(.no-mission) .tac-other { display: flex; }
+body.lead:not(.mine):not(.no-mission) .tac-lead { display: flex; }
+/* Holding RELEASE or UNLINK. */
+.tac-release.holding { background: rgba(var(--no-red-rgb), 0.14); }
+
+/* No-mission state — shared .mfd-empty (theme.css), the convention ATC and NOXMFD's pages use.
+   The two views above are shown only outside it, so nothing here has to out-rank them. */
+#no-mission { display: none; }
+body.no-mission .tac-page { display: none; }
+body.no-mission #no-mission { display: block; }

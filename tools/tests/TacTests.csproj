@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Standalone xUnit project, the same shape as NOXMFD's tools/tests: it compiles this extension's
+       pure .cs files directly (no game, BepInEx or NOXMFD.dll needed), and TacModule.csproj removes
+       tools\**\*.cs from the plugin build. Run: dotnet test tools/tests -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\plugin\TacRole.cs" Link="Source\TacRole.cs" />
+    <Compile Include="..\..\src\plugin\TacJson.cs" Link="Source\TacJson.cs" />
+    <Compile Include="..\..\src\plugin\TacRoster.cs" Link="Source\TacRoster.cs" />
+    <Compile Include="..\..\src\plugin\TacReports.cs" Link="Source\TacReports.cs" />
+  </ItemGroup>
+
+</Project>
