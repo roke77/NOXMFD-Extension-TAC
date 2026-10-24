@@ -29,10 +29,11 @@ namespace TacModule
             Log = Logger;
 
             // ApiVersion is a const, compiled into this DLL as a literal, so it can't tell which
-            // NOXMFD is actually loaded; the method itself can.
-            if (typeof(NOXMFD.Api).GetMethod("SendMessage") == null)
+            // NOXMFD is actually loaded; the methods themselves can. LocateOnMap is API 8's newest
+            // addition, so finding it means the rest of API 8 is there too.
+            if (typeof(NOXMFD.Api).GetMethod("SendMessage") == null || typeof(NOXMFD.Api).GetMethod("LocateOnMap") == null)
             {
-                Log.LogError("[TAC] this NOXMFD has no extension messaging (API 8) — TAC disabled. Update NOXMFD.");
+                Log.LogError("[TAC] this NOXMFD has no extension messaging or LocateOnMap (API 8) — TAC disabled. Update NOXMFD.");
                 return;
             }
             if (!Register()) return;

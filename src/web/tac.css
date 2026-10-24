@@ -341,7 +341,6 @@ html, body {
 .tac-report-row { display: flex; align-items: center; gap: 12px; min-height: clamp(46px, 7.4vmin, 58px); padding: 0 12px; border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); }
 .tac-report-row .tac-pop-name { flex: 1 1 auto; }
 .tac-report-row .tac-btn { min-width: clamp(90px, 14vmin, 130px); }
-.tac-lead-foot { font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.05em; color: var(--no-control-text-off); }
 
 /* Holding the role shows the officer's board; a squad leader under a TAC officer sees their
    assignments; anyone else sees the role view. */

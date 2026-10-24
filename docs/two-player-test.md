@@ -10,7 +10,8 @@ Both players, before launching:
 
 - **NOXMFD** built from NOXMFD's `feature/ext-squad-messaging-api` branch (`dotnet build -c
   Release`), in `BepInEx/plugins`. The released NOXMFD doesn't have API 8: TAC then logs
-  `[TAC] this NOXMFD has no extension messaging (API 8) — TAC disabled` and does nothing.
+  `[TAC] this NOXMFD has no extension messaging or LocateOnMap (API 8) — TAC disabled` and does
+  nothing.
 - **TAC** built from this repo's `feature/tac-phase1` branch (`dotnet build TacModule.csproj -c
   Release`), in `BepInEx/plugins`.
 
@@ -42,9 +43,10 @@ The first line from TAC, `TAC <version> loaded`, confirms the right build is ins
 | 4 | A selects two or three enemies on MAP, then ADD FROM MAP → ADD ALL | They appear on A's board at NORMAL. A friendly selected on MAP is not offered. |
 | 5 | A taps a cell in the `VIPER 1` column | Cell turns teal ASGN; the target appears in B's list within a second, with its priority. |
 | 6 | A changes that target's priority | B's list re-sorts and shows the new priority. |
+| 6a | A selects that row and presses LOCATE, with MAP open beside TAC | MAP rings the target, turns FLW off and centres on it once (zooming in if it was at full extent); panning MAP afterwards stays where A leaves it. |
 | 7 | B presses ENGAGING on it | B's button lights; A's cell turns green ENGD within a second. |
 | 8 | A taps the ENGD cell once, then holds it | A tap only shows the "hold to withdraw" hint; the hold withdraws it, and it leaves B's list. |
-| 9 | B presses ACQUIRE on an assigned target, then ACQUIRE ALL | The targets become selected in B's own targeting, with the cockpit marker and beep. |
+| 9 | B presses ACQUIRE on an assigned target, then ACQUIRE ALL | The targets become selected in B's own targeting, with the cockpit marker and beep; they don't show up in B's REPORT list (TAC has them already). |
 | 10 | B locks an enemy A doesn't have, then REPORT on it | A's board doesn't change; `VIPER 1`'s PULL ▼ shows an amber `1`. B's row reads `SENT TO TAC ✓`. |
 | 11 | A presses PULL ▼ under `VIPER 1`, then ADD on the reported target | The panel lists what B reported; the added target lands at NORMAL, unassigned, and leaves the list (the count goes). |
 | 12 | Destroy an assigned target | Within ~1 s it disappears from A's board and B's list. |

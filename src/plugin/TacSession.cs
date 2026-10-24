@@ -99,7 +99,7 @@ namespace TacModule
             foreach (ulong id in _gone)
             {
                 Info($"TAC officer {Who(id)} went silent for {TacRole.OfficerTimeoutSeconds:0} s — treated as gone");
-                if (id == _lastLink) Note("Your TAC officer went silent — link to another");
+                if (id == _lastLink) Note("Your officer went silent — link to another");
             }
             if (_role.IsMine(self))
             {
@@ -373,7 +373,7 @@ namespace TacModule
             _loggedTasks.Remove(squadron);
             _reports.RemoveSquadron(squadron);
             bool withdrew = TacBoard.RemoveSquadron(squadron);
-            if (withdrew) Note(squadron + " left — its assignments were withdrawn");
+            if (withdrew) Note(squadron + " left — assignments withdrawn");
             Info($"squadron {squadron} left the matrix ({why})" +
                  (withdrew ? " — its assignments were withdrawn" : ""));
         }

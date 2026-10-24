@@ -114,7 +114,7 @@ function matrixHtml(sel) {
         ' targets (' + n + ' reported)">PULL ▼' + (n ? '<span class="tac-pull-n">' + n + '</span>' : '') + '</button></span>';
     }
   } else {
-    html += '<span class="tac-nosq">NO SQUAD LEADERS RUNNING TAC YET</span>';
+    html += '<span class="tac-nosq">NO SQUADRONS LINKED YET</span>';
   }
   html += '</div>';
 
@@ -127,7 +127,7 @@ function matrixHtml(sel) {
       '<span class="tac-pri p' + e.p + '">' + PRIORITIES[e.p] + '</span></div>' +
       squadrons.map((sq) => cellHtml(e, sq)).join('') + '</div>';
   }
-  if (!board.length) html += '<div class="tac-empty">— BOARD EMPTY — SELECT UNITS ON MAP, THEN ADD FROM MAP —</div>';
+  if (!board.length) html += '<div class="tac-empty">— BOARD EMPTY · ADD FROM MAP OR PULL —</div>';
   return html;
 }
 
@@ -181,7 +181,7 @@ function closePop() {
 
 function itemHtml(it) {
   return '<div class="tac-pop-item' + (it.on ? ' on' : '') + '"><span class="tac-pop-name">' + escapeHtml(it.n || '—') + '</span>' +
-    (it.on ? '<span class="tac-pop-tag">on board ✓</span>'
+    (it.on ? '<span class="tac-pop-tag">ON BOARD ✓</span>'
       : '<button type="button" class="tac-btn tac-add" data-id="' + it.id + '" data-n="' + escapeHtml(it.n) + '">ADD</button>') +
     '</div>';
 }
@@ -193,13 +193,13 @@ function renderPop() {
     items = addCandidates(contacts, board);
     popTitleEl.textContent = 'SELECTED ON MAP (' + items.length + ')';
     popSubEl.textContent = 'New targets start at NORMAL';
-    note = 'No enemy units selected — tap enemies on MAP first';
+    note = 'Select enemies on MAP first';
   } else {
     // A pulled report leaves the bucket once it is on the board (TacReports.cs).
     items = pulls[pop.sq] || [];
     popTitleEl.textContent = pop.sq + ' REPORTED (' + items.length + ')';
     popSubEl.textContent = 'Pulled targets start at NORMAL';
-    note = 'Nothing reported yet — ' + pop.sq + '’s leader sends targets with REPORT';
+    note = 'Nothing reported yet';
   }
   popFresh = items.filter((it) => !it.on);
   popAllBtn.hidden = !popFresh.length;
@@ -253,7 +253,7 @@ matrixEl.addEventListener('click', (e) => {
     const id = Number(cell.dataset.id), sq = cell.dataset.sq;
     if (cell.classList.contains('engd')) {
       if (holdFired) { holdFired = false; return; }
-      flash('ENGAGED — hold the cell to withdraw ' + sq);
+      flash('Hold to withdraw ' + sq);
       return;
     }
     postCommand({ cmd: cell.classList.contains('asgn') ? 'unassign' : 'assign', id, sq });
@@ -277,13 +277,13 @@ matrixEl.addEventListener('click', (e) => {
 function otherText(r) {
   const any = r.offs.length > 0;
   if (r.sr === 1) {
-    if (!any) return { msg: 'NO TAC OFFICER IN YOUR FACTION', sub: "Once someone takes the role, link to them here to get their assignments. Squad leaders can't apply: TAC sits above the squads." };
-    if (r.lk === 1) return { msg: 'LINKING…', taken: true, sub: 'Waiting for the officer to answer. You can pick another officer instead.' };
-    return { msg: 'LINK TO A TAC OFFICER', taken: true, sub: "Pick the officer whose assignments you'll take: one at a time, and you can switch later." };
+    if (!any) return { msg: 'NO TAC OFFICER IN YOUR FACTION', sub: 'Link to an officer here once one is on duty.' };
+    if (r.lk === 1) return { msg: 'LINKING…', taken: true, sub: 'Waiting for the officer to answer.' };
+    return { msg: 'LINK TO A TAC OFFICER', taken: true, sub: 'Pick the officer to take assignments from.' };
   }
   const msg = any ? 'TAC OFFICERS IN YOUR FACTION' : 'NO TAC OFFICER IN YOUR FACTION';
-  if (r.can) return { msg, taken: any, sub: 'You have no squad, so you can become an officer too. There is no approval step.' };
-  if (r.sr === 2) return { msg, taken: any, sub: "Squad members don't work with TAC: your squad leader links to an officer." };
+  if (r.can) return { msg, taken: any, sub: 'Apply to become an officer.' };
+  if (r.sr === 2) return { msg, taken: any, sub: 'Your squad leader works with TAC.' };
   return { msg, taken: any, sub: 'Join a faction to apply for TAC.' };
 }
 
@@ -339,8 +339,8 @@ function holdButton(btn, fire, hint) {
     flash(hint);
   });
 }
-holdButton(releaseBtn, () => postCommand({ cmd: 'release' }), 'Hold RELEASE to give up the role — it clears the board');
-holdButton(unlinkBtn, () => postCommand({ cmd: 'unlink' }), "Hold UNLINK to leave this officer — your assignments clear");
+holdButton(releaseBtn, () => postCommand({ cmd: 'release' }), 'Hold RELEASE to give up TAC');
+holdButton(unlinkBtn, () => postCommand({ cmd: 'unlink' }), 'Hold UNLINK to leave this officer');
 
 // ── Squad leader ───────────────────────────────────────────────────────────────────────────────
 let lead = { q: '', l: [] };              // the slice's "lead" (TacLeader.cs)
@@ -372,8 +372,10 @@ function renderLead() {
     lastLeadHtml = html;
   }
 
-  // REPORT: this leader's own locked enemies, from telemetry like ADD FROM MAP (decision 17).
-  const locks = contacts.filter((c) => c.tg && c.f === 2);
+  // REPORT: this leader's own locked enemies, from telemetry like ADD FROM MAP (decision 17) —
+  // minus the ones TAC assigned to this squadron (locked through ACQUIRE, say): TAC has them already.
+  const assigned = new Set(lead.l.map((t) => t.id));
+  const locks = contacts.filter((c) => c.tg && c.f === 2 && !assigned.has(c.id));
   const rhtml = locks.length ? locks.map((c) => '<div class="tac-report-row"><span class="tac-pop-name">' + escapeHtml(c.t || '—') + '</span>' +
     (reported.has(c.id) ? '<span class="tac-pop-tag">SENT TO TAC ✓</span>'
       : '<button type="button" class="tac-btn tac-add" data-id="' + c.id + '" data-n="' + escapeHtml(c.t || '') + '">REPORT</button>') + '</div>').join('')
@@ -398,7 +400,7 @@ reportListEl.addEventListener('click', (e) => {
   if (!b) return;
   postCommand({ cmd: 'report', id: Number(b.dataset.id) });
   reported.add(Number(b.dataset.id));
-  flash('REPORTED — ' + b.dataset.n + ' is waiting in TAC’s PULL');
+  flash('REPORTED — ' + b.dataset.n);
 });
 
 locateBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'locate', id: sel.id }); });

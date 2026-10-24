@@ -130,13 +130,13 @@ The squadron matrix (decision 19) of the squadrons linked to this officer (decis
   frame's contacts (a jammed picture, or no longer known) shows STALE.
 - **ADD FROM MAP ▼**: lists the enemy units in the officer's own current selection — the units they've selected by
   tapping them on NOXMFD's MAP page (the same in-game target selection TGT shows). Tap a unit to
-  add it, or **ADD ALL**. Units already on the board show as `on board ✓` rather than being added
+  add it, or **ADD ALL**. Units already on the board show as `ON BOARD ✓` rather than being added
   twice. No long picker: the MAP is the picker.
 - **PULL ▼** under a squadron, with an amber count of the targets its leader has reported and the
   officer hasn't added yet (decision 8). Opening it lists them the same way — tap to add, or
   **ADD ALL**; an added target leaves the list.
 - **Bottom section**, pinned to the bottom of the page: SELECTED (the selected row's name), STATUS,
-  **LOCATE** (MAP highlight via the existing `Api.SetSelectedUnit`) and **REMOVE** (drop the row,
+  **LOCATE** (MAP's dashed ring on the target, and MAP centred on it once — `Api.LocateOnMap`) and **REMOVE** (drop the row,
   withdrawing every assignment) on one line; the four **PRIORITY** lamp buttons below it.
 - Target identity is the game's `persistentID` everywhere (ticket reqs 15), so a target pulled
   twice, or reported by two leaders, is one row.
@@ -235,11 +235,13 @@ directly.
    can't forge or intercept NOXMFD's own `sqd.*` messages; payloads up to 4096 UTF-8 bytes; sends
    only to peers known to run NOXMFD; handlers run on the main thread.
 4. **Selecting a target** — `Api.SelectTarget(unitId)`, for ACQUIRE: MAP's own tap-to-select path.
-5. **Docs + version** — this extension's `BepInDependency` floor raised to the NOXMFD release that
+5. **Locating a target** — `Api.LocateOnMap(unitId)`, for LOCATE: `SetSelectedUnit`'s ring plus one
+   re-centre of MAP on the unit (FLW dropped, zoomed in from full extent), after which the officer
+   pans freely. `SetSelectedUnit` alone only rings it, and `SetSelectedUnitTrack` keeps following.
+6. **Docs + version** — this extension's `BepInDependency` floor raised to the NOXMFD release that
    ships API version 8, and `lib/NOXMFD.dll` refreshed from it.
 
-Already available and used as-is: `RegisterExtension` (+ its command handler), `PublishSlice`,
-`SetSelectedUnit`, `SetSelectedUnitTrack`.
+Already available and used as-is: `RegisterExtension` (+ its command handler), `PublishSlice`.
 
 ## Build order (phase 1)
 

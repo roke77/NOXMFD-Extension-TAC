@@ -83,7 +83,7 @@ namespace TacModule
                     if (e == null || e.Assignees.RemoveAll(a => a.Squadron == c.sq) == 0) return;
                     break;
                 case "locate":
-                    NOXMFD.Api.SetSelectedUnit(c.id);
+                    NOXMFD.Api.LocateOnMap(c.id);   // the ring, and MAP centred on it once
                     return;
                 default:
                     Plugin.Log?.LogWarning($"[TAC] unknown command '{c.cmd}'.");
