@@ -75,6 +75,12 @@
       <HintPath>$(GameDir)\NuclearOption_Data\Managed\Mirage.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Reads the messages between players: JsonUtility leaves arrays of objects empty in the game's
+         Mono runtime. The game ships and loads Newtonsoft.Json 13 itself. -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(GameDir)\NuclearOption_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <Target Name="DeployToGame" AfterTargets="Build">

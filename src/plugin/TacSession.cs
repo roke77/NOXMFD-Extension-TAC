@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using NOXMFD;
+using Newtonsoft.Json;
 using NuclearOption.Networking;
 using UnityEngine;
 
@@ -40,7 +41,11 @@ namespace TacModule
         private static string _lastSlice = "";
         private static ulong _lastHolder;
 
-        [Serializable]
+        // Read with Newtonsoft, not JsonUtility: JsonUtility leaves `l` (an array of objects) empty in
+        // the game's Mono runtime. Nulls are ignored so a hostile `"n":null` keeps the "" default.
+        private static readonly JsonSerializerSettings MessageSettings =
+            new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
+
         private class Message
         {
             public string t = "";
@@ -159,7 +164,7 @@ namespace TacModule
         internal static void HandleMessage(ulong from, string payload)
         {
             Message? m;
-            try { m = JsonUtility.FromJson<Message>(payload); }
+            try { m = JsonConvert.DeserializeObject<Message>(payload, MessageSettings); }
             catch (Exception ex)
             {
                 // Once per sender: another player's broken or newer client must not flood the log.
