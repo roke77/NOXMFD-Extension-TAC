@@ -24,7 +24,6 @@ NOXMFD. TAC is an experiment: if it proves useful, it may later become a native 
 - [Features](#features)
 - [Using the page](#using-the-page)
 - [Installing](#installing)
-- [Links](#links)
 - [Building](#building)
 - [Credits](#credits)
 
@@ -86,15 +85,6 @@ no connection it shows NO SIGNAL.
    [latest release](https://github.com/roke77/NOXMFD-Extension-TAC/releases/latest) and extract it
    into `BepInEx/plugins/`.
 3. Launch the game. A **TAC** entry appears under NOXMFD's EXT nav.
-
----
-
-## Links
-
-- [Releases and changelog](https://github.com/roke77/NOXMFD-Extension-TAC/releases)
-- [NOXMFD](https://github.com/roke77/NOXMFD): the browser MFD this page runs in
-- [Design and roadmap](docs/tac-plan.md)
-- [Two-player test](docs/two-player-test.md): the match checklist a release passes
 
 ---
 
