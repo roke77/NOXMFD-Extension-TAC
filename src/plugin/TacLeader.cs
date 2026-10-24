@@ -11,7 +11,6 @@ namespace TacModule
     // assigned to this leader's squadron, and ENGAGING going back. Main thread only, like TacSession.
     internal static class TacLeader
     {
-        [Serializable]
         internal class Task
         {
             public uint id;

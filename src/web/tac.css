@@ -269,7 +269,7 @@ html, body {
 .tac-you { font-size: clamp(9px, 1.5vmin, 13px); letter-spacing: 0.15em; color: var(--no-amber); white-space: nowrap; }
 .tac-release { height: clamp(28px, 5vmin, 40px); }
 
-/* ── Everyone else: who holds TAC, and APPLY while it's free ─────────────────────────────────── */
+/* ── Everyone else: the faction's officers, LINK for a squad leader, APPLY without a squad ──── */
 .tac-other {
   height: 100%;
   display: none; flex-direction: column;
@@ -342,8 +342,8 @@ html, body {
 .tac-report-row .tac-pop-name { flex: 1 1 auto; }
 .tac-report-row .tac-btn { min-width: clamp(90px, 14vmin, 130px); }
 
-/* Holding the role shows the officer's board; a squad leader under a TAC officer sees their
-   assignments; anyone else sees the role view. */
+/* An officer sees their board; a squad leader linked to an officer sees their assignments;
+   anyone else (a leader still picking an officer included) sees the role view. */
 body:not(.mine) .tac-page { display: none; }
 body:not(.mine):not(.lead):not(.no-mission) .tac-other { display: flex; }
 body.lead:not(.mine):not(.no-mission) .tac-lead { display: flex; }

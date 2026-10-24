@@ -2,8 +2,9 @@
 
 ## Status
 
-Phase 1 built (build steps 1–3); the two-player match test (step 4) is next. See
-[Build order](#build-order-phase-1). This doc turns
+Phase 1 built (build steps 1–3) and through a first two-player match (step 4), which changed
+decisions 3, 4, 8 and 12 and added 24; a re-run of [the test](two-player-test.md) with those changes
+is next, then NOXMFD's API 8 release. See [Build order](#build-order-phase-1). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
 

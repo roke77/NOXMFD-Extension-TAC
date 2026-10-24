@@ -12,11 +12,11 @@ priority, and assigns it to the linked squadrons; squad leaders see their assign
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
 **Status: in development.** Built against NOXMFD's unreleased extension API 8 (faction roster, own
-squad, messaging, target selection). Phase 1 is built: the TAC role, the officer's squadron matrix
-(ADD FROM MAP, PULL, assignments, priority, LOCATE, REMOVE), the squad leader's page (ENGAGING,
-ACQUIRE, REPORT) and destroyed-target removal. It has only run in the browser preview so far; the
-two-player match test is next. The design and build order are in
-[`docs/tac-plan.md`](docs/tac-plan.md).
+squad, messaging, target selection, LOCATE ON MAP). Phase 1 is built: any number of TAC officers,
+squad leaders linking to one, the officer's squadron matrix (ADD FROM MAP, PULL of what leaders
+REPORT, assignments, priority, LOCATE, REMOVE), the squad leader's page (ENGAGING, ACQUIRE, REPORT)
+and destroyed-target removal. It has passed a first two-player match; NOXMFD's API 8 release comes
+next. The design and build order are in [`docs/tac-plan.md`](docs/tac-plan.md).
 
 This extension is an experiment: try TAC with real players, gather feedback and refine it. If it
 proves useful, TAC may later become a native NOXMFD feature.

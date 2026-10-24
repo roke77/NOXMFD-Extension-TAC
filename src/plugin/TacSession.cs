@@ -398,11 +398,12 @@ namespace TacModule
               .Append(",\"sr\":").Append(squadRole)
               .Append(",\"offs\":[");
             List<ulong> officers = _role.Officers();
+            IReadOnlyList<FactionPilot> pilots = Api.GetFactionPilots();   // built per call: once per publish
             for (int i = 0; i < officers.Count; i++)
             {
                 if (i > 0) sb.Append(',');
                 sb.Append("{\"id\":\"").Append(officers[i]).Append("\",\"n\":");
-                TacJson.AppendString(sb, Label(FindPilot(officers[i])));
+                TacJson.AppendString(sb, Label(FindPilot(officers[i], pilots)));
                 sb.Append('}');
             }
             sb.Append("],\"link\":\"").Append(_role.Linked).Append("\",\"lk\":").Append((int)_role.LinkState)
@@ -452,9 +453,9 @@ namespace TacModule
 
         private static string MessageJson(string type) => "{\"t\":\"" + type + "\"}";
 
-        private static FactionPilot? FindPilot(ulong steamId)
+        private static FactionPilot? FindPilot(ulong steamId, IReadOnlyList<FactionPilot>? pilots = null)
         {
-            foreach (FactionPilot p in Api.GetFactionPilots()) if (p.SteamId == steamId) return p;
+            foreach (FactionPilot p in pilots ?? Api.GetFactionPilots()) if (p.SteamId == steamId) return p;
             return null;
         }
 
