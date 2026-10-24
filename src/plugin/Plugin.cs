@@ -11,9 +11,9 @@ namespace TacModule
     // this mod exists. The TAC role and messaging (TacSession.cs) and the officer's target board
     // (TacBoard.cs) — see docs/tac-plan.md.
     [BepInPlugin("com.roque.tac-module", "NOXMFD: TAC Module Extension", MyPluginInfo.PLUGIN_VERSION)]
-    // Raised to the NOXMFD release that ships extension API 8 (messaging) once it exists
-    // (docs/tac-plan.md, build order step 4); until then Awake checks for the API itself.
-    [BepInDependency("com.roque.NOXMFD", "0.52.0")]
+    // 0.77.0 ships extension API 8 (faction roster, messaging, SelectTarget, LocateOnMap): BepInEx
+    // won't load TAC against an older NOXMFD.
+    [BepInDependency("com.roque.NOXMFD", "0.77.0")]
     [BepInProcess("NuclearOption.exe")]
     [BepInProcess("NuclearOptionServer.exe")]
     public class Plugin : BaseUnityPlugin
@@ -27,15 +27,6 @@ namespace TacModule
         private void Awake()
         {
             Log = Logger;
-
-            // ApiVersion is a const, compiled into this DLL as a literal, so it can't tell which
-            // NOXMFD is actually loaded; the methods themselves can. LocateOnMap is API 8's newest
-            // addition, so finding it means the rest of API 8 is there too.
-            if (typeof(NOXMFD.Api).GetMethod("SendMessage") == null || typeof(NOXMFD.Api).GetMethod("LocateOnMap") == null)
-            {
-                Log.LogError("[TAC] this NOXMFD has no extension messaging or LocateOnMap (API 8) — TAC disabled. Update NOXMFD.");
-                return;
-            }
             if (!Register()) return;
 
             if (!_sceneSubscribed)
@@ -43,12 +34,9 @@ namespace TacModule
                 _sceneSubscribed = true;
                 SceneManager.sceneLoaded += OnSceneLoaded;
             }
-            Log.LogInfo($"TAC {MyPluginInfo.PLUGIN_VERSION} loaded (NOXMFD extension API {NOXMFD.Api.ApiVersion}+ found).");
+            Log.LogInfo($"TAC {MyPluginInfo.PLUGIN_VERSION} loaded.");
         }
 
-        // Kept out of Awake: the JIT compiles a method whole before running it, and this one names
-        // API 8 members, so against an older NOXMFD it must only be compiled after the check passed.
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         private static bool Register()
         {
             if (!NOXMFD.Api.RegisterExtension(ExtId, "TAC", TacPageAssets.Resolve, TacSession.HandleCommand))

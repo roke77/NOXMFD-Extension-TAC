@@ -4,7 +4,7 @@
 
 Phase 1 built (build steps 1–3) and through a first two-player match (step 4), which changed
 decisions 3, 4, 8 and 12 and added 24; a re-run of [the test](two-player-test.md) with those changes
-is next, then NOXMFD's API 8 release. See [Build order](#build-order-phase-1). This doc turns
+is next. NOXMFD 0.77.0 ships API 8, and TAC requires it. See [Build order](#build-order-phase-1). This doc turns
 [roke77/NOXMFD#93](https://github.com/roke77/NOXMFD/issues/93) into a two-phase plan and records
 the design decisions settled so far.
 
@@ -221,8 +221,8 @@ squad and its leader, but only a leader running TAC can receive assignments.
 
 ## NOXMFD API additions (phase 1)
 
-The only change phase 1 makes to NOXMFD, built as extension API version 8 on NOXMFD's
-`feature/ext-squad-messaging-api` branch (NOXMFD's `docs/extension-messaging.md`, `EXTENSIONS.md`
+The only change phase 1 makes to NOXMFD, shipped in NOXMFD 0.77.0 as extension API version 8
+(NOXMFD's `docs/extension-messaging.md`, `EXTENSIONS.md`
 surfaces 10–12). Everything else above is this extension's own code, or game state it reads
 directly.
 
@@ -239,8 +239,8 @@ directly.
 5. **Locating a target** — `Api.LocateOnMap(unitId)`, for LOCATE: `SetSelectedUnit`'s ring plus one
    re-centre of MAP on the unit (FLW dropped, zoomed in from full extent), after which the officer
    pans freely. `SetSelectedUnit` alone only rings it, and `SetSelectedUnitTrack` keeps following.
-6. **Docs + version** — this extension's `BepInDependency` floor raised to the NOXMFD release that
-   ships API version 8, and `lib/NOXMFD.dll` refreshed from it.
+6. **Docs + version** — done: this extension's `BepInDependency` floor is 0.77.0, the release that
+   ships API version 8, and `lib/NOXMFD.dll` comes from it.
 
 Already available and used as-is: `RegisterExtension` (+ its command handler), `PublishSlice`.
 

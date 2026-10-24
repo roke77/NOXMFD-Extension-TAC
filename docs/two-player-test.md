@@ -8,10 +8,8 @@ faction.
 
 Both players, before launching:
 
-- **NOXMFD** built from NOXMFD's `feature/ext-squad-messaging-api` branch (`dotnet build -c
-  Release`), in `BepInEx/plugins`. The released NOXMFD doesn't have API 8: TAC then logs
-  `[TAC] this NOXMFD has no extension messaging or LocateOnMap (API 8) — TAC disabled` and does
-  nothing.
+- **NOXMFD 0.77.0 or later** (the GitHub release, NOMNOM or Thunderstore), in `BepInEx/plugins`.
+  With an older NOXMFD, BepInEx doesn't load TAC at all and logs a missing-dependency error.
 - **TAC** built from this repo's `feature/tac-phase1` branch (`dotnet build TacModule.csproj -c
   Release`), in `BepInEx/plugins`.
 
@@ -67,5 +65,5 @@ If a third player **C** is around:
 
 ## After a pass
 
-NOXMFD's API branch can merge and ship in a NOXMFD release; this extension's `BepInDependency`
-floor then rises to that version (docs/tac-plan.md, build order step 4).
+TAC's `feature/tac-phase1` can merge to its `main` and ship as TAC's first release, requiring
+NOXMFD 0.77.0.
