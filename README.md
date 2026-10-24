@@ -25,7 +25,6 @@ NOXMFD. TAC is an experiment: if it proves useful, it may later become a native 
 - [Using the page](#using-the-page)
 - [Installing](#installing)
 - [Links](#links)
-- [What's here](#whats-here)
 - [Building](#building)
 - [Credits](#credits)
 
@@ -96,25 +95,6 @@ no connection it shows NO SIGNAL.
 - [NOXMFD](https://github.com/roke77/NOXMFD): the browser MFD this page runs in
 - [Design and roadmap](docs/tac-plan.md)
 - [Two-player test](docs/two-player-test.md): the match checklist a release passes
-
----
-
-## What's here
-
-- `src/plugin/Plugin.cs` registers the **TAC** EXT page and message handler, and starts the
-  worker that ticks the session.
-- `src/plugin/TacSession.cs` carries the messages between officers and squad leaders and publishes
-  the page's state.
-- `src/plugin/TacRole.cs` (officers and links), `TacRoster.cs` (an officer's squadrons) and
-  `TacReports.cs` (the PULL buckets) hold the pure logic, tested in `tools/tests/`.
-- `src/plugin/TacBoard.cs` is the officer's board; `TacLeader.cs` a squad leader's side;
-  `TacGame.cs` the game reads (locks, destroyed units, enemies).
-- `src/plugin/TacPageAssets.cs` serves the embedded `src/web/` files.
-- `src/web/tac.{html,css,js}` is the page; `tac-board.js` holds its pure helpers, checked by
-  `node src/web/tac-board.test.js`.
-- `tools/preview.py` previews the page in a browser with mock data; `tools/shot.py` retakes the
-  screenshots above from it.
-- `lib/NOXMFD.dll` is a compile-time reference only, not shipped to players.
 
 ---
 
