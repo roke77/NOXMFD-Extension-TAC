@@ -28,7 +28,9 @@ const otherMsgEl = $('other-msg');
 const otherSubEl = $('other-sub');
 const otherNoteEl = $('other-note');
 const applyBtn = $('apply-btn');
+const officersEl = $('officers');
 const releaseBtn = $('release-btn');
+const unlinkBtn = $('unlink-btn');
 const leadHolderEl = $('lead-holder');
 const leadSqEl = $('lead-sq');
 const leadCountEl = $('lead-count');
@@ -50,7 +52,8 @@ let lastPopHtml = '';
 let pressing = false;      // a pointer is down on the matrix: a rebuild now would swallow its click
 let holdTimer = 0;
 let holdFired = false;     // the long press already withdrew: ignore the click that follows it
-let role = { mine: 0, h: '', can: 0, sr: 0 };   // the slice's "r" (TacSession.cs)
+const NO_ROLE = { mine: 0, can: 0, sr: 0, offs: [], link: '0', lk: 0 };
+let role = NO_ROLE;          // the slice's "r" (TacSession.cs); officer ids are strings
 let lastNoteSeq = -1;
 let lastOtherKey = '';
 
@@ -269,58 +272,75 @@ matrixEl.addEventListener('click', (e) => {
 });
 
 // ── Role ───────────────────────────────────────────────────────────────────────────────────────
-// What a player who doesn't hold TAC sees: the holder, and why they can or can't apply.
+// What a player who isn't an officer sees: the faction's officers, LINK for a squad leader
+// (decision 24), and APPLY for a player without a squad.
 function otherText(r) {
-  if (r.h) {
-    return { msg: 'TAC IS HANDLED BY ' + r.h, taken: true,
-      sub: r.sr === 1 ? "Your squadron's assignments from TAC appear here." : 'Only squad leaders work with TAC.' };
+  const any = r.offs.length > 0;
+  if (r.sr === 1) {
+    if (!any) return { msg: 'NO TAC OFFICER IN YOUR FACTION', sub: "Once someone takes the role, link to them here to get their assignments. Squad leaders can't apply: TAC sits above the squads." };
+    if (r.lk === 1) return { msg: 'LINKING…', taken: true, sub: 'Waiting for the officer to answer. You can pick another officer instead.' };
+    return { msg: 'LINK TO A TAC OFFICER', taken: true, sub: "Pick the officer whose assignments you'll take: one at a time, and you can switch later." };
   }
-  const msg = 'NO TAC OFFICER IN YOUR FACTION';
-  if (r.can) return { msg, sub: 'You have no squad, so you can take the role. There is no approval step: you get it straight away.' };
-  if (r.sr === 1) return { msg, sub: "Your assignments appear here once someone takes TAC. Squad leaders can't apply: TAC sits above the squads." };
-  if (r.sr === 2) return { msg, sub: "Squad members can't apply: TAC sits above the squads." };
-  return { msg, sub: 'Join a faction to apply for TAC.' };
+  const msg = any ? 'TAC OFFICERS IN YOUR FACTION' : 'NO TAC OFFICER IN YOUR FACTION';
+  if (r.can) return { msg, taken: any, sub: 'You have no squad, so you can become an officer too. There is no approval step.' };
+  if (r.sr === 2) return { msg, taken: any, sub: "Squad members don't work with TAC: your squad leader links to an officer." };
+  return { msg, taken: any, sub: 'Join a faction to apply for TAC.' };
+}
+
+function officerRowHtml(o, r) {
+  const action = r.sr !== 1 ? ''
+    : o.id === r.link ? '<span class="tac-pop-tag">LINKING…</span>'
+    : '<button type="button" class="tac-btn tac-add" data-of="' + escapeHtml(o.id) + '">LINK</button>';
+  return '<div class="tac-off-row"><span class="tac-pop-name">' + escapeHtml(o.n || '—') + '</span>' + action + '</div>';
+}
+
+function linkedName(r) {
+  const o = r.offs.find((x) => x.id === r.link);
+  return o ? o.n : '';
 }
 
 function renderRole() {
   document.body.classList.toggle('mine', !!role.mine);
-  document.body.classList.toggle('lead', !role.mine && role.sr === 1 && !!role.h);
+  document.body.classList.toggle('lead', !role.mine && role.sr === 1 && role.lk === 2);
   const key = JSON.stringify(role);
   if (key === lastOtherKey) return;
   lastOtherKey = key;
-  holderEl.textContent = role.h || '— NONE —';
-  holderEl.className = 'tac-holder' + (role.h ? '' : ' none');
+  const n = role.offs.length;
+  holderEl.textContent = n ? n + ' OFFICER' + (n === 1 ? '' : 'S') : '— NONE —';
+  holderEl.className = 'tac-holder' + (n ? '' : ' none');
   const t = otherText(role);
   otherMsgEl.textContent = t.msg;
   otherSubEl.textContent = t.sub;
   otherLampEl.classList.toggle('taken', !!t.taken);
+  officersEl.innerHTML = role.offs.map((o) => officerRowHtml(o, role)).join('');
   applyBtn.hidden = !role.can;
 }
 
 applyBtn.addEventListener('click', () => postCommand({ cmd: 'apply' }));
+officersEl.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-of]');
+  if (b) postCommand({ cmd: 'link', of: b.dataset.of });
+});
 
-// RELEASE clears the whole board and every leader's list, so it needs the same long press as an
-// ENGAGED cell (decision 22); a tap only says so.
-let releaseTimer = 0;
-let releaseFired = false;
-function cancelRelease() {
-  clearTimeout(releaseTimer);
-  releaseBtn.classList.remove('holding');
+// RELEASE clears the whole board and every leader's list, and UNLINK clears this leader's
+// assignments, so both need the same long press as an ENGAGED cell (decision 22); a tap only says so.
+function holdButton(btn, fire, hint) {
+  let timer = 0;
+  let fired = false;
+  const cancel = () => { clearTimeout(timer); btn.classList.remove('holding'); };
+  btn.addEventListener('pointerdown', () => {
+    fired = false;
+    btn.classList.add('holding');
+    timer = setTimeout(() => { fired = true; btn.classList.remove('holding'); fire(); }, HOLD_MS);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, cancel);
+  btn.addEventListener('click', () => {
+    if (fired) { fired = false; return; }
+    flash(hint);
+  });
 }
-releaseBtn.addEventListener('pointerdown', () => {
-  releaseFired = false;
-  releaseBtn.classList.add('holding');
-  releaseTimer = setTimeout(() => {
-    releaseFired = true;
-    releaseBtn.classList.remove('holding');
-    postCommand({ cmd: 'release' });
-  }, HOLD_MS);
-});
-for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) releaseBtn.addEventListener(ev, cancelRelease);
-releaseBtn.addEventListener('click', () => {
-  if (releaseFired) { releaseFired = false; return; }
-  flash('Hold RELEASE to give up the role — it clears the board');
-});
+holdButton(releaseBtn, () => postCommand({ cmd: 'release' }), 'Hold RELEASE to give up the role — it clears the board');
+holdButton(unlinkBtn, () => postCommand({ cmd: 'unlink' }), "Hold UNLINK to leave this officer — your assignments clear");
 
 // ── Squad leader ───────────────────────────────────────────────────────────────────────────────
 let lead = { q: '', l: [] };              // the slice's "lead" (TacLeader.cs)
@@ -339,7 +359,7 @@ function leadRowHtml(t) {
 }
 
 function renderLead() {
-  leadHolderEl.textContent = role.h || '— NONE —';
+  leadHolderEl.textContent = linkedName(role) || '— NONE —';
   leadSqEl.textContent = lead.q || '';
   const n = lead.l.length;
   const count = '— <b>' + n + '</b> ASSIGNMENT' + (n === 1 ? '' : 'S');
@@ -409,7 +429,8 @@ function renderFrame(d) {
   board = sortBoard(Array.isArray(slice.board) ? slice.board : []);
   squadrons = Array.isArray(slice.sq) ? slice.sq : [];
   pulls = slice.pull || {};
-  role = slice.r || { mine: 0, h: '', can: 0, sr: 0 };
+  role = { ...NO_ROLE, ...slice.r };
+  if (!Array.isArray(role.offs)) role.offs = [];
   const ld = slice.lead || {};
   lead = { q: ld.q || '', l: Array.isArray(ld.l) ? ld.l : [] };
   renderRole();

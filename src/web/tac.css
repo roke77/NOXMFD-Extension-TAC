@@ -117,14 +117,21 @@ html, body {
 .tac-mhead .tac-pin { align-items: end; padding-bottom: 14px; }
 .tac-colh { font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.2em; color: var(--no-green-dim); }
 
-/* The selected row: TGT's amber outline. The pinned block repeats the tint as a solid colour so
-   the cells scrolling under it don't show through. */
+/* The selected row: TGT's amber border, one solid rectangle. The pinned block paints over the row,
+   so it draws its own top, bottom and left edges and the row draws top, bottom and right; both
+   repeat the tint as a solid colour so the cells scrolling under the pin don't show through. */
 .tac-row.selected {
   --row-tint: color-mix(in srgb, var(--no-amber) 6%, var(--no-bg));
+  --row-edge: 2px;
   background: var(--row-tint);
-  outline: 2px solid var(--no-amber); outline-offset: -2px;
+  box-shadow: inset 0 var(--row-edge) 0 var(--no-amber), inset 0 calc(-1 * var(--row-edge)) 0 var(--no-amber),
+    inset calc(-1 * var(--row-edge)) 0 0 var(--no-amber);
 }
-.tac-row.selected .tac-pin { background: var(--row-tint); }
+.tac-row.selected .tac-pin {
+  background: var(--row-tint);
+  box-shadow: inset 0 var(--row-edge) 0 var(--no-amber), inset 0 calc(-1 * var(--row-edge)) 0 var(--no-amber),
+    inset var(--row-edge) 0 0 var(--no-amber), 1px 0 0 var(--no-green-dark), 10px 0 10px -6px rgba(var(--no-black-rgb), 0.9);
+}
 
 .tac-name {
   display: block; min-width: 0; height: 100%; min-height: 40px;
@@ -261,7 +268,6 @@ html, body {
 /* ── Header role controls ────────────────────────────────────────────────────────────────────── */
 .tac-you { font-size: clamp(9px, 1.5vmin, 13px); letter-spacing: 0.15em; color: var(--no-amber); white-space: nowrap; }
 .tac-release { height: clamp(28px, 5vmin, 40px); }
-.tac-release.holding { background: rgba(var(--no-red-rgb), 0.14); }
 
 /* ── Everyone else: who holds TAC, and APPLY while it's free ─────────────────────────────────── */
 .tac-other {
@@ -293,6 +299,12 @@ html, body {
 }
 .tac-apply[hidden] { display: none; }
 .tac-other-note { flex: 0 0 auto; text-align: center; }
+/* The faction's officers; a squad leader links to one of them here. */
+.tac-officers { width: min(600px, 100%); display: flex; flex-direction: column; }
+.tac-officers:empty { display: none; }
+.tac-off-row { display: flex; align-items: center; gap: 12px; min-height: clamp(46px, 7.4vmin, 58px); padding: 0 12px; border-bottom: 1px solid rgba(var(--no-green-rgb), 0.10); text-align: left; }
+.tac-off-row:first-child { border-top: 1px solid var(--no-green-dark); }
+.tac-off-row .tac-btn { min-width: clamp(90px, 14vmin, 130px); }
 .tac-rules {
   display: flex; flex-direction: column; gap: 8px;
   padding-top: 14px; border-top: 1px solid var(--no-green-dark);
@@ -336,6 +348,8 @@ html, body {
 body:not(.mine) .tac-page { display: none; }
 body:not(.mine):not(.lead):not(.no-mission) .tac-other { display: flex; }
 body.lead:not(.mine):not(.no-mission) .tac-lead { display: flex; }
+/* Holding RELEASE or UNLINK. */
+.tac-release.holding { background: rgba(var(--no-red-rgb), 0.14); }
 
 /* No-mission state — shared .mfd-empty (theme.css), the convention ATC and NOXMFD's pages use.
    The two views above are shown only outside it, so nothing here has to out-rank them. */

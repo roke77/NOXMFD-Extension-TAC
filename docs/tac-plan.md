@@ -36,13 +36,13 @@ board, not a mission planner. Full requirements in the ticket.
    ADD needs the aircraft: NOXMFD's MAP selection is a real in-game target selection, which the
    game only allows with a local aircraft. PULL and REPORT work without one. A MAP pick mode that
    works without an aircraft would be a NOXMFD feature — phase 2.
-3. **One TAC officer per faction, and they must NOT be in a squad.** Any player in the faction
-   with the extension can press **APPLY FOR TAC** (EXT → TAC); for now that grants the role
-   directly, with no approval step. A squad leader or squad member can't apply — TAC sits above
-   the squads, not inside one. Nobody can apply while the role is held — for now there's no
-   takeover; the holder has to release first. Everyone in the faction sees who holds it. Released
-   explicitly (**RELEASE**), or automatically when the holder leaves, disconnects, changes
-   faction, or joins/creates a squad.
+3. **Any number of TAC officers per faction, and they must NOT be in a squad.** Any player in the
+   faction with the extension can press **APPLY FOR TAC** (EXT → TAC); that grants the role
+   directly, with no approval step, however many officers there already are. A squad leader or
+   squad member can't apply — TAC sits above the squads, not inside one. Everyone in the faction
+   sees the list of officers. Released explicitly (**RELEASE**), or automatically when the officer
+   leaves, disconnects, changes faction, or joins/creates a squad. (Changed after the first
+   two-player test: originally one officer per faction, with no takeover while the role was held.)
 4. **Board sources:** targets the officer **pulls** from what a squad leader has **reported**
    (decision 8), and targets the officer **adds** from their own current selection (picked on
    NOXMFD's MAP page). Nothing is auto-populated: only the officer puts a row on the board.
@@ -66,10 +66,8 @@ board, not a mission planner. Full requirements in the ticket.
     assignee's copy, is removed once the game drops the unit.
 11. **The board lives for the mission, in memory.** Cleared when the mission ends or the officer
     releases/leaves the role; leaders' assignment lists clear with it.
-12. **Simultaneous claims: the lower SteamID wins.** A holder that hears another player's `claim`
-    while holding the role keeps it only if its own SteamID is lower; otherwise it steps down with a
-    note. No clocks involved: two PCs' clocks can be seconds apart, so a claim time can't decide a
-    race.
+12. **No claim race.** With several officers allowed (decision 3), two players applying at once
+    both become officers. (Originally the lower SteamID won a simultaneous claim.)
 13. **Joining a squad loses TAC.** If the officer creates a squad, or accepts an invite into one,
     TAC is released (decision 3 applied strictly). Phase 1 can't stop the squad actions themselves —
     those are NOXMFD's own SQD features — so the extension reacts to the squad state instead.
@@ -100,12 +98,23 @@ board, not a mission planner. Full requirements in the ticket.
     tap only shows "hold to release".
 23. **The squad leader's page is the canvas's "Squad leader view" board** as drawn: assignments
     with ENGAGING and ACQUIRE, ACQUIRE ALL, and REPORT on each enemy lock.
+24. **A squad leader links to one officer, by their own choice.** The leader's page lists the
+    faction's officers with **LINK** on each; the leader takes assignments from, and REPORTs to,
+    that officer only. The handshake: LINK sends `hello` to that officer, whose client accepts
+    without asking the officer and answers with the squadron's `tasks` — the first `tasks` confirms
+    the link (`LINKING…` until then). One link at a time: linking to another officer sends `unlink`
+    to the old one, which drops the squadron and withdraws its assignments at once; **UNLINK**
+    (long press, like RELEASE) does the same without a new link. A link ends when its officer
+    releases or goes silent, or when the leader stops leading the squad; in that last case no
+    `unlink` is sent, so a new leader who links to the same officer within the silence keeps the
+    squadron's assignments (decision 16). Each officer's matrix shows only the squadrons linked to
+    them.
 
 ## Phase 1 scope
 
-### Officer view (the holder of the TAC role)
+### Officer view (each TAC officer)
 
-The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Panel style:
+The squadron matrix (decision 19) of the squadrons linked to this officer (decision 24), titled **TARGET CONTROL**, in NOXMFD's Lit Panel style:
 
 - **Header**: title, `YOU ARE TAC` and **RELEASE**. Below it the counts (`12 TARGETS · 6
   SQUADRONS`), a short status line for messages, and **ADD FROM MAP ▼**.
@@ -134,9 +143,11 @@ The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Pa
 
 ### Squad leader view
 
-- **Header**: who holds TAC (the holder's player name), or `TAC: — NONE —` with a short "no TAC
-  officer in your faction" note. A leader never sees APPLY FOR TAC (decision 3).
-- **My squad's assignments** (only while someone holds TAC): each target TAC assigned to my
+- **Picking an officer** (decision 24): until the link is confirmed, the page lists the faction's
+  officers with **LINK** on each (`LINKING…` on the one picked), or "no TAC officer in your
+  faction". A leader never sees APPLY FOR TAC (decision 3).
+- **Header**, once linked: the linked officer's name and **UNLINK** (long press).
+- **My squad's assignments** (only while linked): each target the officer assigned to my
   squadron, with the priority TAC set, sorted by priority (CRITICAL first). Updates live as TAC
   assigns, reprioritises, unassigns or removes; a destroyed target disappears.
 - **ENGAGING** toggle per assignment (decision 7) — pressing it again turns the officer's row back
@@ -150,9 +161,9 @@ The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Pa
 
 ### Everyone else (squad members, squadless players)
 
-- Who holds TAC right now.
-- **APPLY FOR TAC** while nobody holds it — only for a player who isn't in a squad (decision 3).
-  The holder sees **RELEASE** instead.
+- The faction's officers right now.
+- **APPLY FOR TAC** for a player who isn't in a squad (decision 3), whether or not there are
+  officers already. An officer sees **RELEASE** instead.
 
 ### Target status
 
@@ -167,15 +178,16 @@ extension and can't be mistaken for NOXMFD's own squad messages. Each is a JSON 
 
 | Message | Direction | Meaning |
 |---|---|---|
-| `claim` / `release` | holder → faction | "I hold / no longer hold TAC." `claim` repeats every 3 s so late joiners learn the holder. |
-| `hello` | leader → holder | Answers each `claim`: "I lead a squad and run TAC". Carries nothing: the squad's callsign/flight come from the faction table. |
-| `tasks` | holder → leader | The squadron's **whole** target list (id, name, priority, engaged), sent whenever it changes and again after every `hello`. Assigning, unassigning, reprioritising and removing all reach the leader this way; a lost message or a new leader after a handover heals within one claim. |
-| `engaging` | leader → holder | On/off for one assigned target. |
-| `report` | leader → holder | One locked enemy for the squadron's PULL bucket. |
+| `claim` / `release` | officer → faction | "I am / am no longer a TAC officer." `claim` repeats every 3 s so late joiners learn the officers. |
+| `hello` | leader → officer | Sent at once on LINK, then in answer to each of that officer's `claim`s: "I lead a squad and link to you". Carries nothing: the squad's callsign/flight come from the faction table. |
+| `unlink` | leader → officer | The leader linked to another officer or pressed UNLINK: the squadron leaves this officer's matrix now. |
+| `tasks` | officer → leader | The squadron's **whole** target list (id, name, priority, engaged), sent whenever it changes and again after every `hello`; the first one confirms a new link. Assigning, unassigning, reprioritising and removing all reach the leader this way; a lost message or a new leader after a handover heals within one claim. |
+| `engaging` | leader → officer | On/off for one assigned target. |
+| `report` | leader → officer | One locked enemy for the squadron's PULL bucket. |
 
-Trust follows the squad protocol's model: `tasks` accepted only from the current holder;
-`hello`/`report`/`engaging` accepted only by the holder, only from a faction peer
-that leads a squad. `claim` is believed only from a faction-mate outside any squad. The officer checks a `hello` against
+Trust follows the squad protocol's model: `tasks` accepted only from the officer this leader
+linked to; `hello`/`unlink`/`report`/`engaging` accepted only by an officer, only from a faction
+peer that leads a squad. `claim` is believed only from a faction-mate outside any squad. The officer checks a `hello` against
 `Api.GetFactionPilots`: the sender must be the leader of the squad (callsign + flight) its own
 presence beat announces, which NOXMFD already broadcasts faction-wide.
 
@@ -184,24 +196,24 @@ presence beat announces, which NOXMFD already broadcasts faction-wide.
 How the officer learns which squadrons exist (the ASSIGN ▼ / PULL FROM SQUAD ▼ lists). The target
 board itself still starts empty and fills only from ADD and PULL (decision 4).
 
-1. **A player takes TAC.** Their extension sends `claim` (with the claim time) to every faction-mate
-   running NOXMFD.
-2. **Leaders answer.** Every squad leader running the extension replies with `hello` (callsign,
-   flight, designation). The officer's ASSIGN/PULL lists fill from these within a second or two.
-3. **`claim` repeats every few seconds.** Covers a leader who joins the match late, a player who
-   creates a squad later, and a lost message; each new leader answers with its own `hello`.
+1. **A player takes TAC.** Their extension sends `claim` to every faction-mate running NOXMFD, and
+   every leader's page lists them as an officer to LINK to.
+2. **Leaders link.** A leader who presses LINK sends that officer `hello`; the officer's matrix
+   gains the squadron's column, and its `tasks` reply confirms the link (decision 24).
+3. **`claim` repeats every few seconds.** Covers a leader who joins the match late and a lost
+   message; each linked leader answers its officer's `claim` with `hello`.
 4. **Squad changes.** The next `hello` after a change carries it, since the officer reads the
    squad's callsign/flight from the faction table: a renamed squadron replaces its old column at
    once, and a new leader's `hello` for a known squadron is a handover — the full `tasks` list,
    ENGAGING included, goes to the new leader (decision 16).
 5. **Going stale.** A squadron whose leader hasn't answered for 10 s (three missed claims) leaves
    the matrix, and its assignments are withdrawn.
-6. **Release.** When the officer releases TAC, leaves, changes faction, or joins a squad, their
-   extension sends `release`, and every leader clears its assignments list.
-7. **Silent holder.** A crash or dropped connection never sends `release`, so every player treats
-   TAC as gone once it hears no `claim` for ~15 s: leaders clear their assignments, and APPLY FOR
-   TAC reappears for squadless players. A leader that changes faction likewise stops answering and
-   drops off the officer's lists (step 5).
+6. **Release.** When an officer releases TAC, leaves, changes faction, or joins a squad, their
+   extension sends `release`; leaders linked to them lose the link and clear their assignments.
+7. **Silent officer.** A crash or dropped connection never sends `release`, so every player drops
+   an officer once it hears no `claim` from them for ~15 s, with the same effect on linked leaders.
+   A leader that changes faction likewise stops answering and drops off the officer's matrix
+   (step 5).
 
 A squad whose leader doesn't run the extension never appears: NOXMFD's faction table knows every
 squad and its leader, but only a leader running TAC can receive assignments.

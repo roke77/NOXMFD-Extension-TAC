@@ -6,9 +6,9 @@ Serves /ext/tac/* from this repo's src/web, /assets/shared|services/* from a NOX
 (default: a sibling ../NOXMFD), and a mock /stream of enemy contacts with an ext.tac board slice.
 POST /ext/tac/command applies add/remove/priority/assign/unassign to that board the way TacBoard.cs
 does, with mock squad leaders' REPORTs waiting in PULL buckets; GET /commands lists what was received.
-GET /scenario?s=board|empty|nosq|nomission&role=mine|free|taken|leader-free|leader-taken|member
+GET /scenario?s=board|empty|nosq|nomission&role=mine|free|taken|leader-free|leader-pick|leader-taken|member
 switches what the stream sends (&note=<text> raises a notice, &reset=1 reseeds the board and the
-PULL buckets); apply and release move the role between free and mine.
+PULL buckets); apply and release move the role between free and mine; LINK confirms after 0.8 s.
 """
 import json, sys, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -45,17 +45,21 @@ def seed():
             for n, (i, p, a) in enumerate(rows)]
 
 
-# role: mine (this player holds TAC), free (nobody does, may apply), taken (MAVERICK holds it),
-# leader-free / leader-taken (a squad leader's view), member (a squad member, role free).
+# role: mine (this player is an officer), free (no officers, may apply), taken (two officers, may
+# still apply), leader-free (a squad leader, no officers), leader-pick (a squad leader choosing an
+# officer), leader-taken (a squad leader linked to MAVERICK), member (a squad member).
+MAVERICK, OVERLORD = "76561198000000001", "76561198000000002"
+OFFICERS = [{"id": MAVERICK, "n": "MAVERICK"}, {"id": OVERLORD, "n": "OVERLORD 1-1"}]
 ROLES = {
-    "mine": {"mine": 1, "h": "YOU", "can": 0, "sr": 0},
-    "free": {"mine": 0, "h": "", "can": 1, "sr": 0},
-    "taken": {"mine": 0, "h": "MAVERICK", "can": 0, "sr": 0},
-    "leader-free": {"mine": 0, "h": "", "can": 0, "sr": 1},
-    "leader-taken": {"mine": 0, "h": "MAVERICK", "can": 0, "sr": 1},
-    "member": {"mine": 0, "h": "", "can": 0, "sr": 2},
+    "mine": {"mine": 1, "can": 0, "sr": 0, "offs": OFFICERS[1:]},
+    "free": {"mine": 0, "can": 1, "sr": 0, "offs": []},
+    "taken": {"mine": 0, "can": 1, "sr": 0, "offs": OFFICERS},
+    "leader-free": {"mine": 0, "can": 0, "sr": 1, "offs": []},
+    "leader-pick": {"mine": 0, "can": 0, "sr": 1, "offs": OFFICERS},
+    "leader-taken": {"mine": 0, "can": 0, "sr": 1, "offs": OFFICERS, "link": MAVERICK, "lk": 2},
+    "member": {"mine": 0, "can": 0, "sr": 2, "offs": OFFICERS},
 }
-state = {"s": "board", "role": "mine"}
+state = {"s": "board", "role": "mine", "link": "0", "lk": 0}
 board = seed()
 pulls = reports()
 note = {"s": 0, "t": ""}
@@ -66,7 +70,8 @@ lock = threading.Lock()
 
 
 def slice_():
-    common = {"r": ROLES.get(state["role"], ROLES["mine"]), "note": note, "lead": lead}
+    r = {**ROLES.get(state["role"], ROLES["mine"]), "link": state["link"], "lk": state["lk"]}
+    common = {"r": r, "note": note, "lead": lead}
     if state["s"] == "empty":
         return {**common, "board": [], "sq": SQUADRONS}
     return {**common, "board": board, "sq": [] if state["s"] == "nosq" else SQUADRONS, "pull": pulls}
@@ -90,8 +95,22 @@ def apply(c):
     cmd, uid = c.get("cmd"), c.get("id", 0)
     # The role, as TacSession.cs handles it: APPLY only while free; RELEASE empties the board.
     if cmd == "apply":
-        if state["role"] == "free":
+        if ROLES[state["role"]]["can"]:
             state["role"] = "mine"
+        return
+    # LINK, as TacSession.cs handles it: pending until the officer's first task list.
+    if cmd == "link" and ROLES[state["role"]]["sr"] == 1:
+        state["link"], state["lk"] = c.get("of", "0"), 1
+
+        def confirm(of):
+            time.sleep(0.8)
+            with lock:
+                if state["link"] == of:
+                    state["lk"] = 2
+        threading.Thread(target=confirm, args=(state["link"],), daemon=True).start()
+        return
+    if cmd == "unlink":
+        state["link"], state["lk"] = "0", 0
         return
     if cmd == "release":
         if state["role"] == "mine":
@@ -159,6 +178,9 @@ class H(BaseHTTPRequestHandler):
             with lock:
                 state["s"] = q.get("s", [state["s"]])[0]
                 state["role"] = q.get("role", [state["role"]])[0]
+                if "role" in q:
+                    preset = ROLES.get(state["role"], {})
+                    state["link"], state["lk"] = preset.get("link", "0"), preset.get("lk", 0)
                 if "note" in q:
                     notice(q["note"][0])
                 if q.get("reset", ["0"])[0] == "1":

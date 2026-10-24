@@ -21,8 +21,9 @@ sit parked). **A** plays TAC officer and stays **out of any squad**. **B** creat
 If anything fails, keep both players' `BepInEx/LogOutput.log` and note the clock time of the step.
 Grep them for:
 
-- `[TAC]` — role changes (`TAC holder: X -> Y`), squadrons joining/leaving the matrix, refusals
-  with their reason (APPLY refused, a `hello` the faction table doesn't back, a sender NOXMFD
+- `[TAC]` — officers appearing and going (`TAC officer X is available`), link changes
+  (`TAC link: X -> Y`, `link to … confirmed`), squadrons joining/leaving the matrix, refusals with
+  their reason (APPLY or LINK refused, a `hello` the faction table doesn't back, a sender NOXMFD
   doesn't list yet).
 - `[TAC diag` — time-stamped message traffic: tasks sent/received, ENGAGING, REPORT (and where it went), ACQUIRE.
 - `[NOXMFD ext-link` — the first TAC message each way per player, and `[NOXMFD] message for
@@ -36,8 +37,8 @@ The first line from TAC, `TAC <version> loaded`, confirms the right build is ins
 | # | Do | Expect |
 |---|---|---|
 | 1 | Both in the faction, nobody applied | A: NO TAC OFFICER IN YOUR FACTION + APPLY FOR TAC. B: the leader's "no TAC officer" text, no APPLY. |
-| 2 | A presses APPLY FOR TAC | A gets TARGET CONTROL / YOU ARE TAC. Within ~3 s B's page shows TAC: A (A's callsign, or Steam name) and B's assignment page. |
-| 3 | Wait ~3 s on A | A's matrix shows a `VIPER 1` column, `1 SQUADRONS`. |
+| 2 | A presses APPLY FOR TAC | A gets TARGET CONTROL / YOU ARE TAC, with no `VIPER 1` column yet. Within ~3 s B's page shows LINK TO A TAC OFFICER, with A listed and a LINK button. |
+| 3 | B presses LINK on A | B's row reads LINKING…, then within a second or two B's assignment page opens with TAC: A. A's matrix shows a `VIPER 1` column, `1 SQUADRONS`. |
 | 4 | A selects two or three enemies on MAP, then ADD FROM MAP → ADD ALL | They appear on A's board at NORMAL. A friendly selected on MAP is not offered. |
 | 5 | A taps a cell in the `VIPER 1` column | Cell turns teal ASGN; the target appears in B's list within a second, with its priority. |
 | 6 | A changes that target's priority | B's list re-sorts and shows the new priority. |
@@ -48,14 +49,19 @@ The first line from TAC, `TAC <version> loaded`, confirms the right build is ins
 | 11 | A presses PULL ▼ under `VIPER 1`, then ADD on the reported target | The panel lists what B reported; the added target lands at NORMAL, unassigned, and leaves the list (the count goes). |
 | 12 | Destroy an assigned target | Within ~1 s it disappears from A's board and B's list. |
 | 13 | B disbands the squad | Within ~10 s the `VIPER 1` column leaves A's matrix and its assignments are withdrawn (status-line note). |
-| 14 | A taps RELEASE once, then holds it | A tap only shows "hold to release"; the hold frees the role on both pages and empties A's board. |
-| 15 | A applies again, then quits the game (or kills the process) | B's page shows the role free again after ~15 s. |
-| 16 | Both apply at the same moment (with B out of any squad) | Within a few seconds one holds TAC: the lower SteamID. The other sees "TAC taken by …". |
+| 14 | B recreates the squad and links to A again, then taps UNLINK once and holds it | A tap only shows "hold to unlink"; the hold returns B to the officer list, and `VIPER 1` leaves A's matrix at once (not after 10 s). |
+| 15 | B links again; A taps RELEASE once, then holds it | A tap only shows "hold to release"; the hold empties A's board, and B's page drops back to NO TAC OFFICER IN YOUR FACTION. |
+| 16 | A applies again, B links, then A quits the game (or kills the process) | After ~15 s B's page drops A from the list and shows the "went silent" note. |
 | 17 | Throughout | NOXMFD's own squad features (SQD roster, TD designations, WPT route sharing) keep working. |
 
-If a third player is around: a squad **member** (not leader) sees only who holds TAC and can't
-apply (step 1 and 2), and a handover inside B's squad (SQD → promote the member) keeps the `VIPER 1`
-column and its assignments, moving them to the new leader (decision 16).
+If a third player **C** is around:
+
+- C stays out of any squad and presses APPLY FOR TAC while A is an officer: both are officers, and
+  B's list shows two. B links to C: `VIPER 1` leaves A's matrix at once and appears on C's, and B's
+  assignments are now C's (empty until C assigns).
+- As a squad **member** (not leader) of B's squad, C sees the officers but has no LINK and no APPLY.
+  A handover inside B's squad (SQD → promote C), followed by C linking to the same officer within
+  ~10 s, keeps the `VIPER 1` column and its assignments, moving them to C (decision 16).
 
 ## After a pass
 

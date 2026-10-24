@@ -5,10 +5,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Adds a **TAC** page under [NOXMFD](https://github.com/roke77/NOXMFD)'s EXT nav — a
-target-coordination board for one player per faction acting as the TAC officer (mission control),
-working with the leaders of the faction's squads. The officer collects targets onto a shared
+target-coordination board for players acting as TAC officers (mission control), each working
+with the squad leaders who link to them. An officer collects targets onto a shared
 board (ADD from their MAP selection, or PULL what a squad leader has REPORTed), sets each one's
-priority, and assigns it to squadrons; squad leaders see their assignments, ACQUIRE them and mark
+priority, and assigns it to the linked squadrons; squad leaders see their assignments, ACQUIRE them and mark
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
 **Status: in development.** Built against NOXMFD's unreleased extension API 8 (faction roster, own
@@ -29,10 +29,11 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
 
 - `src/plugin/Plugin.cs` — checks NOXMFD has extension messaging (API 8), registers the **TAC** EXT
   page and message handler, and spawns the persistent `TAC_Worker` that ticks the session.
-- `src/plugin/TacRole.cs` — who holds the TAC role: APPLY/RELEASE, the lower-SteamID claim race,
-  losing the role on joining a squad or leaving the faction, the silent-holder timeout. Pure.
-- `src/plugin/TacSession.cs` — the live glue: claim/release messages to faction-mates, the board
-  gated to the role's holder, and the page's slice (role + board).
+- `src/plugin/TacRole.cs` — the faction's officers and this player's standing: APPLY/RELEASE,
+  losing the role on joining a squad or leaving the faction, silent officers dropping out, and a
+  squad leader's link to one officer (pending until confirmed). Pure.
+- `src/plugin/TacSession.cs` — the live glue: claim/release messages to faction-mates, LINK/UNLINK,
+  the board gated to an officer, and the page's slice (role + board).
 - `src/plugin/TacRoster.cs` — the officer's squadron roster: one entry per squadron whose leader
   runs TAC, keyed by callsign + flight, with handover, rename and silence. Pure.
 - `src/plugin/TacLeader.cs` — a squad leader's side: the assignments TAC sent, ENGAGING, ACQUIRE
@@ -46,8 +47,8 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
 - `src/plugin/TacJson.cs` — JSON string escaping for the slice and messages. Pure.
 - `src/plugin/TacPageAssets.cs` — embedded-resource lookup for `src/web/`'s HTML/CSS/JS.
 - `src/web/tac.{html,css,js}` — the page, in NOXMFD's Lit Panel style: the officer's squadron
-  matrix, the squad leader's assignments and REPORT list, and everyone else's role view (holder,
-  APPLY FOR TAC). Reads names, OBSERVED/STALE and the pilot's own selection from NOXMFD's telemetry.
+  matrix, the squad leader's assignments and REPORT list, and everyone else's role view (the
+  officers, LINK for a squad leader, APPLY FOR TAC). Reads names, OBSERVED/STALE and the pilot's own selection from NOXMFD's telemetry.
 - `src/web/tac-board.js` — pure board helpers (sort, status, cell state, ADD list), checked by
   `node src/web/tac-board.test.js`.
 - `tools/preview.py` — browser preview with a mock board, 6 squadrons, reports waiting in two

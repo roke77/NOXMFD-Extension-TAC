@@ -50,6 +50,15 @@ namespace TacModule
             foreach (string k in dropped) _byKey.Remove(k);
         }
 
+        // A leader who unlinked (switched officer, or UNLINK): their squadron goes at once rather
+        // than after the silence. Returns its key, or null when they answered for none.
+        internal string? Remove(ulong leader)
+        {
+            string? key = KeyOf(leader);
+            if (key != null) _byKey.Remove(key);
+            return key;
+        }
+
         internal bool TryLeader(string key, out ulong leader)
         {
             leader = _byKey.TryGetValue(key, out Entry? e) ? e.Leader : 0;

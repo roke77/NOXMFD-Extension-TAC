@@ -63,5 +63,16 @@ namespace TacModule.Tests
             r.Note("VIPER 1", 3, 0f, dropped);
             Assert.Equal(new[] { "COBRA 1", "VIPER 1", "VIPER 2" }, r.Keys());
         }
+
+        [Fact]
+        public void An_unlinking_leader_takes_their_squadron_at_once()
+        {
+            var r = new TacRoster();
+            var dropped = new List<string>();
+            r.Note("VIPER 1", Alice, 0f, dropped);
+            Assert.Null(r.Remove(Bob));
+            Assert.Equal("VIPER 1", r.Remove(Alice));
+            Assert.Empty(r.Keys());
+        }
     }
 }

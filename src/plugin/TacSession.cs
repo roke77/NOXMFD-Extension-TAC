@@ -9,16 +9,19 @@ using UnityEngine;
 namespace TacModule
 {
     // The live side of TAC (docs/tac-plan.md): drives TacRole and TacRoster from the game and
-    // NOXMFD's API, carries the messages between the officer and squad leaders, gates the board to
-    // the role's holder, and publishes the page's slice. Everything here runs on the Unity main
-    // thread: TacWorker.Update, the command handler and the message handler.
+    // NOXMFD's API, carries the messages between officers and squad leaders, gates the board to an
+    // officer, and publishes the page's slice. Everything here runs on the Unity main thread:
+    // TacWorker.Update, the command handler and the message handler.
     //
     // Messages ({"t": type, ...}, NOXMFD's ext.tac wire type):
-    //   claim / release   holder -> faction       who holds TAC (every 3 s while held)
-    //   hello             leader -> holder        answers each claim: "I lead a squad and run TAC"
-    //   tasks             holder -> leader        the squadron's whole target list, on change and per hello
-    //   engaging          leader -> holder        ENGAGING on/off for one assigned target
-    //   report            leader -> holder        REPORT: one of the leader's locked enemies, into its PULL bucket
+    //   claim / release   officer -> faction      who is a TAC officer (every 3 s while one)
+    //   hello             leader -> officer       from a leader linked to that officer: at once on LINK,
+    //                                             then answering each of its claims
+    //   unlink            leader -> officer       the leader linked elsewhere or pressed UNLINK
+    //   tasks             officer -> leader       the squadron's whole target list, on change and per
+    //                                             hello; the first one confirms a new link
+    //   engaging          leader -> officer       ENGAGING on/off for one assigned target
+    //   report            leader -> officer       REPORT: one of the leader's locked enemies, into its PULL bucket
     internal static class TacSession
     {
         private const float TickSeconds = 0.25f;
@@ -38,7 +41,9 @@ namespace TacModule
         private static int _noteSeq;
         private static string _note = "";
         private static string _lastSlice = "";
-        private static ulong _lastHolder;
+        private static bool _wasMine;
+        private static ulong _lastLink;
+        private static readonly List<ulong> _gone = new List<ulong>();
 
         // Read with Newtonsoft, not JsonUtility: JsonUtility leaves `l` (an array of objects) empty in
         // the game's Mono runtime. Nulls are ignored so a hostile `"n":null` keeps the "" default.
@@ -59,6 +64,7 @@ namespace TacModule
         {
             public string cmd = "";
             public string sq = "";
+            public string of = "";   // LINK: the officer's SteamID, as a string (a JS number can't hold it)
         }
 
         internal static void Tick()
@@ -70,9 +76,16 @@ namespace TacModule
             ulong self = Api.LocalSteamId;
             SquadRole squadRole = Api.GetLocalSquad().Role;
             bool inSquad = squadRole != SquadRole.None;
-            // A leader who handed over, left or disbanded no longer gets this squadron's targets.
-            if (squadRole != SquadRole.Leader) TacLeader.Clear();
-            switch (_role.Update(self, inSquad, Faction(), now))
+            // A leader who handed over, left or disbanded drops the link without telling the officer:
+            // the squadron's new leader may link to the same officer and keep its assignments
+            // (decision 16); if nobody does, the officer drops the squadron after the silence.
+            if (squadRole != SquadRole.Leader && _role.Linked != 0)
+            {
+                Info($"link to {Who(_role.Linked)} dropped: you no longer lead a squad");
+                _role.Unlink();
+            }
+            _gone.Clear();
+            switch (_role.Update(self, inSquad, Faction(), now, _gone))
             {
                 case TacRole.Tick.SendClaim:
                     Broadcast("claim");
@@ -82,16 +95,17 @@ namespace TacModule
                     Note(inSquad ? "TAC released: you joined a squad" : "TAC released: you left the faction");
                     Info(inSquad ? "role released: you joined a squad" : "role released: you left the faction (now: " + (Faction() ?? "none") + ")");
                     break;
-                case TacRole.Tick.HolderGone:
-                    Note("The TAC officer went silent — the role is free");
-                    Info($"no claim for {TacRole.HolderTimeoutSeconds:0} s — the officer is treated as gone");
-                    break;
+            }
+            foreach (ulong id in _gone)
+            {
+                Info($"TAC officer {Who(id)} went silent for {TacRole.OfficerTimeoutSeconds:0} s — treated as gone");
+                if (id == _lastLink) Note("Your TAC officer went silent — link to another");
             }
             if (_role.IsMine(self))
             {
                 _dropped.Clear();
                 _roster.Expire(now, _dropped);
-                foreach (string sq in _dropped) DropSquadron(sq);
+                foreach (string sq in _dropped) DropSquadron(sq, $"silent {TacRoster.SilentSeconds:0} s");
                 if (now >= _nextGoneCheck)
                 {
                     // Destroyed targets leave the board, every leader's list and the PULL buckets (decision 10).
@@ -102,7 +116,7 @@ namespace TacModule
                 }
                 SyncTasks();   // also carries any removal above to the leaders
             }
-            OnHolderMaybeChanged();
+            OnRoleMaybeChanged();
             Publish();
         }
 
@@ -124,7 +138,7 @@ namespace TacModule
                         Info($"applied for TAC in faction '{faction}' — claiming now");
                     else
                         Info("APPLY FOR TAC refused: " + (self == 0 ? "Steam isn't available"
-                            : _role.Holder != 0 ? "the role is held by " + Who(_role.Holder)
+                            : _role.IsMine(self) ? "you're already an officer"
                             : inSquad ? "you're in a squad" : "you're not in a faction"));
                     _nextTick = 0f;   // claim on the next frame rather than up to a tick later
                     break;
@@ -134,23 +148,49 @@ namespace TacModule
                     Broadcast("release");
                     Info("you released TAC");
                     break;
+                case "link":
+                {
+                    // The leader's choice is enough (decision 24): the officer's client confirms by
+                    // sending its task list in answer to the hello.
+                    if (!TacLeader.IsLeader() || !ulong.TryParse(c.of, out ulong officer))
+                    {
+                        Info("LINK refused: " + (TacLeader.IsLeader() ? $"'{c.of}' is not an officer id" : "only a squad leader links to a TAC officer"));
+                        return;
+                    }
+                    if (!_role.LinkTo(officer, out ulong previous))
+                    {
+                        if (officer != _role.Linked) Info($"LINK refused: {Who(officer)} is not a TAC officer (any more)");
+                        return;
+                    }
+                    if (previous != 0) Api.SendMessage(Plugin.ExtId, previous, MessageJson("unlink"));
+                    bool sent = Api.SendMessage(Plugin.ExtId, officer, MessageJson("hello"));
+                    Info($"linking to TAC officer {Who(officer)}" + (previous != 0 ? $", leaving {Who(previous)}" : "") +
+                         $": hello {(sent ? "sent" : "send refused")}, waiting for their task list");
+                    break;
+                }
+                case "unlink":
+                    if (_role.Linked == 0) return;
+                    Api.SendMessage(Plugin.ExtId, _role.Linked, MessageJson("unlink"));
+                    Info($"you unlinked from {Who(_role.Linked)}");
+                    _role.Unlink();
+                    break;
                 default:
                     if (TacLeader.IsLeaderCommand(c.cmd))
                     {
-                        TacLeader.HandleCommand(json, _role.IsMine(self) ? 0 : _role.Holder);
+                        TacLeader.HandleCommand(json, _role.LinkState == TacRole.Link.Linked ? _role.Linked : 0);
                         break;
                     }
-                    // Everything else edits the board, which only the role's holder has.
+                    // Everything else edits the board, which only an officer has.
                     if (!_role.IsMine(self))
                     {
-                        Plugin.Log?.LogInfo($"[TAC] '{c.cmd}' ignored: you don't hold the TAC role.");
+                        Plugin.Log?.LogInfo($"[TAC] '{c.cmd}' ignored: you're not a TAC officer.");
                         return;
                     }
                     if (c.cmd == "assign" && !_roster.TryLeader(c.sq, out _)) return;   // a squadron that just left
                     TacBoard.HandleCommand(json);
                     return;
             }
-            OnHolderMaybeChanged();
+            OnRoleMaybeChanged();
             Publish();
         }
 
@@ -185,26 +225,25 @@ namespace TacModule
                         Once("sqclaim|" + from, $"claim from {Who(from)} ignored: the faction table shows them in a squad");
                         return;
                     }
-                    switch (_role.OnClaim(from, self, now))
-                    {
-                        case TacRole.Heard.SteppedDown:
-                            Note("TAC taken by " + Label(sender) + " (their claim won the race)");
-                            Info($"stepped down: {Who(from)} claimed too, and the lower SteamID wins");
-                            break;
-                        case TacRole.Heard.Contested:
-                            Api.SendMessage(Plugin.ExtId, from, MessageJson("claim"));
-                            Diag($"claim from {Who(from)} while we hold TAC — answered with ours (our SteamID is lower)");
-                            break;
-                    }
-                    if (_role.Holder == from && TacLeader.IsLeader())
+                    if (_role.OnClaim(from, self, now)) Info($"TAC officer {Who(from)} is available");
+                    if (_role.Linked == from && TacLeader.IsLeader())
                     {
                         bool sent = Api.SendMessage(Plugin.ExtId, from, MessageJson("hello"));
                         Once("hello-out|" + from, $"answering {Who(from)}'s claims with hello as {TacLeader.SquadronKey()} ({(sent ? "sent" : "send refused")})");
                     }
                     break;
                 case "release":
-                    if (_role.OnRelease(from, self)) Note(Label(sender) + " released TAC");
+                    if (!_role.OnRelease(from)) return;
+                    Info($"TAC officer {Who(from)} released the role");
+                    if (from == _lastLink) Note(Label(sender) + " released TAC — link to another officer");
                     break;
+                case "unlink":
+                {
+                    if (!_role.IsMine(self)) return;
+                    string? key = _roster.Remove(from);
+                    if (key != null) DropSquadron(key, $"its leader {Who(from)} unlinked");
+                    break;
+                }
                 case "hello":
                 {
                     // Believed only from the leader of the squad its own presence beat announces.
@@ -220,7 +259,7 @@ namespace TacModule
                     string key = TacRoster.Key(sender.SquadCallsign, sender.SquadFlight);
                     _dropped.Clear();
                     TacRoster.Heard heard = _roster.Note(key, from, now, _dropped);
-                    foreach (string sq in _dropped) DropSquadron(sq);
+                    foreach (string sq in _dropped) DropSquadron(sq, $"its leader {Who(from)} now leads {key}");
                     if (heard == TacRoster.Heard.New) Info($"squadron {key} joined the matrix (leader {Who(from)})");
                     else if (heard == TacRoster.Heard.HandedOver) Info($"squadron {key} handed over to {Who(from)} — re-sending its tasks");
                     _sentTasks.Remove(key);   // every hello gets the full list: a handover or a lost message heals here
@@ -229,7 +268,12 @@ namespace TacModule
                 }
                 case "tasks":
                 {
-                    if (_role.Holder != from || _role.IsMine(self) || !TacLeader.IsLeader()) return;
+                    if (from != _role.Linked || _role.IsMine(self) || !TacLeader.IsLeader()) return;
+                    if (_role.Confirm(from))
+                    {
+                        Info($"link to TAC officer {Who(from)} confirmed");
+                        Note("Linked to TAC " + Label(sender));
+                    }
                     int before = TacLeader.Count;
                     TacLeader.SetTasks(m.l);
                     if (TacLeader.Count != before) Diag($"tasks from {Who(from)}: {TacLeader.Count} target(s) (was {before})");
@@ -259,7 +303,7 @@ namespace TacModule
                     break;
                 }
             }
-            OnHolderMaybeChanged();
+            OnRoleMaybeChanged();
             Publish();
         }
 
@@ -268,7 +312,7 @@ namespace TacModule
         {
             if (_role.IsMine(Api.LocalSteamId)) Broadcast("release");
             _role.Reset();
-            OnHolderMaybeChanged();
+            OnRoleMaybeChanged();
             Publish();
         }
 
@@ -279,14 +323,12 @@ namespace TacModule
             Publish();
         }
 
-        // Whenever the holder changes, what belonged to the old one goes: the officer's board and
-        // roster when the role leaves this client, a leader's assignments when the holder changes.
-        private static void OnHolderMaybeChanged()
+        // What belonged to a standing goes with it: the board, roster and PULL buckets when this
+        // client stops being an officer, a leader's assignments whenever the link changes.
+        private static void OnRoleMaybeChanged()
         {
-            if (_role.Holder == _lastHolder) return;
-            ulong self = Api.LocalSteamId;
-            Info($"TAC holder: {Who(_lastHolder)} -> {Who(_role.Holder)}");
-            if (_lastHolder == self && self != 0)
+            bool mine = _role.IsMine(Api.LocalSteamId);
+            if (_wasMine && !mine)
             {
                 TacBoard.Clear();
                 _roster.Clear();
@@ -294,8 +336,11 @@ namespace TacModule
                 _loggedTasks.Clear();
                 _reports.Clear();
             }
+            _wasMine = mine;
+            if (_role.Linked == _lastLink) return;
+            Info($"TAC link: {Who(_lastLink)} -> {Who(_role.Linked)}");
             TacLeader.Clear();
-            _lastHolder = _role.Holder;
+            _lastLink = _role.Linked;
         }
 
         // Officer: each squadron's leader gets its "tasks" list whenever it differs from what it last got.
@@ -322,35 +367,45 @@ namespace TacModule
             }
         }
 
-        private static void DropSquadron(string squadron)
+        private static void DropSquadron(string squadron, string why)
         {
             _sentTasks.Remove(squadron);
             _loggedTasks.Remove(squadron);
             _reports.RemoveSquadron(squadron);
             bool withdrew = TacBoard.RemoveSquadron(squadron);
             if (withdrew) Note(squadron + " left — its assignments were withdrawn");
-            Info($"squadron {squadron} left the matrix (renamed, disbanded or silent {TacRoster.SilentSeconds:0} s)" +
+            Info($"squadron {squadron} left the matrix ({why})" +
                  (withdrew ? " — its assignments were withdrawn" : ""));
         }
 
         // ── Slice ──────────────────────────────────────────────────────────────────────────────
-        // "r": the role as this client sees it — mine, holder label, whether APPLY is offered, own
-        // squad role (0 none, 1 leader, 2 member). "note": the latest notice and its sequence, so
-        // the page shows each once. "lead": a leader's assignments. Published only when it changes.
+        // "r": this client's standing — officer or not, whether APPLY is offered, own squad role
+        // (0 none, 1 leader, 2 member), the faction's other officers (SteamIDs as strings), the
+        // officer this leader links to and the link state (0 none, 1 pending, 2 linked). "note": the
+        // latest notice and its sequence, so the page shows each once. "lead": a leader's
+        // assignments. Published only when it changes.
         internal static void Publish()
         {
             ulong self = Api.LocalSteamId;
             LocalSquad sq = Api.GetLocalSquad();
             bool mine = _role.IsMine(self);
-            string holder = _role.Holder == 0 ? "" : mine ? "YOU" : Label(FindPilot(_role.Holder));
             bool can = _role.CanApply(self, sq.Role != SquadRole.None, Faction());
             int squadRole = sq.Role == SquadRole.Leader ? 1 : sq.Role == SquadRole.Member ? 2 : 0;
 
             var sb = new StringBuilder(512);
             sb.Append("{\"r\":{\"mine\":").Append(mine ? 1 : 0)
-              .Append(",\"h\":"); TacJson.AppendString(sb, holder);
-            sb.Append(",\"can\":").Append(can ? 1 : 0)
+              .Append(",\"can\":").Append(can ? 1 : 0)
               .Append(",\"sr\":").Append(squadRole)
+              .Append(",\"offs\":[");
+            List<ulong> officers = _role.Officers();
+            for (int i = 0; i < officers.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append("{\"id\":\"").Append(officers[i]).Append("\",\"n\":");
+                TacJson.AppendString(sb, Label(FindPilot(officers[i])));
+                sb.Append('}');
+            }
+            sb.Append("],\"link\":\"").Append(_role.Linked).Append("\",\"lk\":").Append((int)_role.LinkState)
               .Append("},\"note\":{\"s\":").Append(_noteSeq).Append(",\"t\":"); TacJson.AppendString(sb, _note);
             sb.Append("},");
             TacBoard.AppendJson(sb, mine ? _roster.Keys() : new List<string>());

@@ -1,32 +1,52 @@
+using System.Collections.Generic;
+
 namespace TacModule
 {
-    // Who holds the TAC role in this faction, as this client sees it (docs/tac-plan.md: decisions 3,
-    // 12 and 13; startup steps 1, 3, 6 and 7). Pure: SteamIDs, squad standing, faction and time are
-    // passed in, so tools/tests drives it directly; TacSession.cs is the live glue that sends what it
-    // asks for and feeds it what arrives.
+    // The faction's TAC officers and this client's own standing, as this client sees them
+    // (docs/tac-plan.md: decisions 3, 12, 13 and 24; startup steps 1, 3, 6 and 7): whether this
+    // player is an officer, and which officer this squad leader is linked to. Pure: SteamIDs, squad
+    // standing, faction and time are passed in, so tools/tests drives it directly; TacSession.cs is
+    // the live glue that sends what it asks for and feeds it what arrives.
     internal sealed class TacRole
     {
         internal const float ClaimIntervalSeconds = 3f;
-        internal const float HolderTimeoutSeconds = 15f;
+        internal const float OfficerTimeoutSeconds = 15f;
 
-        internal enum Tick { None, SendClaim, SendRelease, HolderGone }
-        internal enum Heard { Ignored, Noted, SteppedDown, Contested }
+        internal enum Tick { None, SendClaim, SendRelease }
+        internal enum Link { None, Pending, Linked }
 
-        internal ulong Holder { get; private set; }   // 0 = nobody holds the role
-        private float _lastHeard;                    // when the current (other) holder last claimed
+        private readonly Dictionary<ulong, float> _officers = new Dictionary<ulong, float>();   // other officers -> last claim
+        private bool _mine;
         private float _nextClaim;                    // ours: when the next periodic claim is due
         private string? _claimFaction;               // ours: the faction we took the role in
 
-        internal bool IsMine(ulong self) => self != 0 && Holder == self;
+        internal bool IsMine(ulong self) => self != 0 && _mine;
 
-        // APPLY FOR TAC: only with nobody holding it, only outside a squad, only inside a faction.
+        // The officer this squad leader listens to (0 = none), and whether that officer has confirmed
+        // the link by sending its task list.
+        internal ulong Linked { get; private set; }
+        internal Link LinkState => Linked == 0 ? Link.None : _confirmed ? Link.Linked : Link.Pending;
+        private bool _confirmed;
+
+        // Every other officer heard from, lowest SteamID first so the list doesn't reorder.
+        internal List<ulong> Officers()
+        {
+            var ids = new List<ulong>(_officers.Keys);
+            ids.Sort();
+            return ids;
+        }
+
+        internal bool IsOfficer(ulong id) => _officers.ContainsKey(id);
+
+        // APPLY FOR TAC: any player outside a squad and inside a faction, however many officers it
+        // already has.
         internal bool CanApply(ulong self, bool inSquad, string? faction) =>
-            self != 0 && Holder == 0 && !inSquad && faction != null;
+            self != 0 && !_mine && !inSquad && faction != null;
 
         internal bool Apply(ulong self, bool inSquad, string? faction, float now)
         {
             if (!CanApply(self, inSquad, faction)) return false;
-            Holder = self;
+            _mine = true;
             _claimFaction = faction;
             _nextClaim = now;   // announce at once
             return true;
@@ -36,68 +56,86 @@ namespace TacModule
         internal bool Release(ulong self)
         {
             if (!IsMine(self)) return false;
-            Holder = 0;
+            _mine = false;
             _claimFaction = null;
             return true;
         }
 
-        // A claim from a faction-mate outside any squad (the caller checks both). Lower SteamID wins a
-        // race (decision 12): a holder hearing a lower id steps down; hearing a higher one it answers
-        // with its own claim at once, so the other side steps down without waiting a full interval.
-        internal Heard OnClaim(ulong from, ulong self, float now)
+        // A claim from a faction-mate outside any squad (the caller checks both). True the first
+        // time this officer is heard.
+        internal bool OnClaim(ulong from, ulong self, float now)
         {
-            if (from == 0 || from == self) return Heard.Ignored;
-            if (IsMine(self))
-            {
-                if (from > self) return Heard.Contested;
-                Holder = from;
-                _claimFaction = null;
-                _lastHeard = now;
-                return Heard.SteppedDown;
-            }
-            bool current = Holder != 0 && now - _lastHeard < HolderTimeoutSeconds;
-            if (current && Holder != from && from > Holder) return Heard.Ignored;   // the lower id keeps it
-            Holder = from;
-            _lastHeard = now;
-            return Heard.Noted;
+            if (from == 0 || from == self) return false;
+            bool known = _officers.ContainsKey(from);
+            _officers[from] = now;
+            return !known;
         }
 
-        internal bool OnRelease(ulong from, ulong self)
+        // True when that officer was known; a link to them goes with them.
+        internal bool OnRelease(ulong from)
         {
-            if (from == 0 || from == self || Holder != from) return false;
-            Holder = 0;
+            if (!_officers.Remove(from)) return false;
+            if (Linked == from) Unlink();
             return true;
         }
 
-        // Called a few times a second. Ours: losing the role on joining a squad or leaving/changing
-        // faction (decisions 3, 13), else the periodic claim. Someone else's: gone after a silence
-        // (a crash or dropped connection never sends release).
-        internal Tick Update(ulong self, bool inSquad, string? faction, float now)
+        // LINK on the squad leader's page: only to a current officer. Returns the officer this
+        // replaces (0 when none), so the caller can tell them the squadron left.
+        internal bool LinkTo(ulong officer, out ulong previous)
         {
-            if (IsMine(self))
+            previous = 0;
+            if (officer == 0 || !_officers.ContainsKey(officer) || officer == Linked) return false;
+            previous = Linked;
+            Linked = officer;
+            _confirmed = false;
+            return true;
+        }
+
+        // The linked officer's task list arrived: the handshake is done.
+        internal bool Confirm(ulong from)
+        {
+            if (from == 0 || from != Linked || _confirmed) return false;
+            _confirmed = true;
+            return true;
+        }
+
+        internal void Unlink()
+        {
+            Linked = 0;
+            _confirmed = false;
+        }
+
+        // Called a few times a second. Ours: losing the role on joining a squad or leaving/changing
+        // faction (decisions 3, 13), else the periodic claim. Others: gone after a silence (a crash or
+        // dropped connection never sends release), added to `gone`; a link to one of them goes too.
+        internal Tick Update(ulong self, bool inSquad, string? faction, float now, List<ulong> gone)
+        {
+            foreach (var kv in _officers)
+                if (now - kv.Value >= OfficerTimeoutSeconds) gone.Add(kv.Key);
+            foreach (ulong id in gone)
             {
-                if (inSquad || faction == null || faction != _claimFaction)
-                {
-                    Release(self);
-                    return Tick.SendRelease;
-                }
-                if (now < _nextClaim) return Tick.None;
-                _nextClaim = now + ClaimIntervalSeconds;
-                return Tick.SendClaim;
+                _officers.Remove(id);
+                if (Linked == id) Unlink();
             }
-            if (Holder != 0 && now - _lastHeard >= HolderTimeoutSeconds)
+
+            if (!IsMine(self)) return Tick.None;
+            if (inSquad || faction == null || faction != _claimFaction)
             {
-                Holder = 0;
-                return Tick.HolderGone;
+                Release(self);
+                return Tick.SendRelease;
             }
-            return Tick.None;
+            if (now < _nextClaim) return Tick.None;
+            _nextClaim = now + ClaimIntervalSeconds;
+            return Tick.SendClaim;
         }
 
         // A new scene (mission start or end): whatever we knew belongs to the last match.
         internal void Reset()
         {
-            Holder = 0;
+            _officers.Clear();
+            _mine = false;
             _claimFaction = null;
+            Unlink();
         }
     }
 }

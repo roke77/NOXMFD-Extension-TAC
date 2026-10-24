@@ -62,14 +62,14 @@ namespace TacModule
 
         internal static int Count => _tasks.Count;
 
-        // Page commands a leader sends. Ignored unless this player leads a squad and someone else
-        // holds TAC.
-        internal static void HandleCommand(string json, ulong holder)
+        // Page commands a leader sends. Ignored unless this player leads a squad and the officer it
+        // linked to has confirmed (`officer` is 0 otherwise).
+        internal static void HandleCommand(string json, ulong officer)
         {
             Command? c;
             try { c = JsonUtility.FromJson<Command>(json); }
             catch (Exception ex) { Plugin.Log?.LogWarning($"[TAC] malformed command: {ex.Message}"); return; }
-            if (c == null || holder == 0 || !IsLeader()) return;
+            if (c == null || officer == 0 || !IsLeader()) return;
 
             switch (c.cmd)
             {
@@ -78,9 +78,9 @@ namespace TacModule
                     Task? t = _tasks.Find(x => x.id == c.id);
                     if (t == null) return;
                     t.e = c.on ? 1 : 0;   // shown at once; the officer's next "tasks" confirms it
-                    bool sent = Api.SendMessage(Plugin.ExtId, holder,
+                    bool sent = Api.SendMessage(Plugin.ExtId, officer,
                         "{\"t\":\"engaging\",\"id\":" + Id(c.id) + ",\"on\":" + (c.on ? "true" : "false") + "}");
-                    TacSession.Diag($"ENGAGING {(c.on ? "on" : "off")} for '{t.n}' ({c.id}) -> {TacSession.Who(holder)}: {(sent ? "sent" : "send refused")}");
+                    TacSession.Diag($"ENGAGING {(c.on ? "on" : "off")} for '{t.n}' ({c.id}) -> {TacSession.Who(officer)}: {(sent ? "sent" : "send refused")}");
                     break;
                 }
                 case "acquire":
@@ -105,10 +105,10 @@ namespace TacModule
                         TacSession.Info($"REPORT of {c.id} refused: not one of your locked enemies right now");
                         return;
                     }
-                    TacSession.Diag($"REPORT '{locks[i].Name}' ({c.id}) -> {TacSession.Who(holder)}");
+                    TacSession.Diag($"REPORT '{locks[i].Name}' ({c.id}) -> {TacSession.Who(officer)}");
                     // A target object with the message type added: {"id":..,"n":"..","t":"report"}.
                     var sb = TacJson.AppendTarget(new StringBuilder(), c.id, TacJson.Clip(locks[i].Name, MaxSentName));
-                    Api.SendMessage(Plugin.ExtId, holder, sb.Append(",\"t\":\"report\"}").ToString());
+                    Api.SendMessage(Plugin.ExtId, officer, sb.Append(",\"t\":\"report\"}").ToString());
                     break;
                 }
                 default:

@@ -93,7 +93,7 @@ namespace TacModule
         }
 
         // The board lives for one mission and one officer (decision 11): emptied on a scene load and
-        // whenever this client stops holding the role. The caller publishes.
+        // whenever this client stops being an officer. The caller publishes.
         internal static void Clear() => _board.Clear();
 
         // ADD from MAP, PULL and a leader's REPORT all land here: one row per unit, however many ways
