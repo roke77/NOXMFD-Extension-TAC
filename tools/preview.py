@@ -5,10 +5,10 @@
 Serves /ext/tac/* from this repo's src/web, /assets/shared|services/* from a NOXMFD checkout
 (default: a sibling ../NOXMFD), and a mock /stream of enemy contacts with an ext.tac board slice.
 POST /ext/tac/command applies add/remove/priority/assign/unassign to that board the way TacBoard.cs
-does, and answers a pull from mock squad leaders; GET /commands lists what was received.
+does, with mock squad leaders' REPORTs waiting in PULL buckets; GET /commands lists what was received.
 GET /scenario?s=board|empty|nosq|nomission&role=mine|free|taken|leader-free|leader-taken|member
-switches what the stream sends (&note=<text> raises a notice, &pulled=1 has TAC pull the mock leader,
-&reset=1 reseeds the board); apply and release move the role between free and mine.
+switches what the stream sends (&note=<text> raises a notice, &reset=1 reseeds the board and the
+PULL buckets); apply and release move the role between free and mine.
 """
 import json, sys, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -29,8 +29,12 @@ CONTACTS = [
 ]
 NAMES = {c[0]: c[1] for c in CONTACTS}
 SQUADRONS = ["VIPER 1", "COBRA 1", "HAMMER 2", "RAVEN 3", "LANCER 1", "SABER 2"]
-# What each mock leader has locked, sent back a moment after a pull.
-LOCKS = {"VIPER 1": [3, 7, 1], "COBRA 1": [4, 21], "HAMMER 2": [3, 22], "RAVEN 3": [], "LANCER 1": [5, 22], "SABER 2": [8]}
+# What the mock leaders have REPORTed, waiting in each squadron's PULL bucket (TacReports.cs).
+REPORTED = {"VIPER 1": [21, 22], "COBRA 1": [21]}
+
+
+def reports():
+    return {sq: [{"id": i, "n": NAMES[i]} for i in ids] for sq, ids in REPORTED.items()}
 
 
 def seed():
@@ -53,10 +57,10 @@ ROLES = {
 }
 state = {"s": "board", "role": "mine"}
 board = seed()
-pulls = {}
+pulls = reports()
 note = {"s": 0, "t": ""}
 # A squad leader's side (role=leader-taken): VIPER 1's assignments from MAVERICK.
-lead = {"q": "VIPER 1", "pulled": 0, "l": [{"id": 1, "n": "SA-15 Tor", "p": 3, "e": 1}, {"id": 2, "n": "Radar Mast", "p": 2, "e": 0}]}
+lead = {"q": "VIPER 1", "l": [{"id": 1, "n": "SA-15 Tor", "p": 3, "e": 1}, {"id": 2, "n": "Radar Mast", "p": 2, "e": 0}]}
 commands = []
 lock = threading.Lock()
 
@@ -108,6 +112,8 @@ def apply(c):
     e = next((x for x in board if x["id"] == uid), None)
     if cmd == "add" and uid and not e:
         board.append({"id": uid, "n": c.get("name", ""), "p": 1, "s": max([x["s"] for x in board] + [0]) + 1, "a": []})
+        for sq in pulls:   # a pulled report leaves every bucket
+            pulls[sq] = [r for r in pulls[sq] if r["id"] != uid]
     elif cmd == "remove" and e:
         board.remove(e)
     elif cmd == "priority" and e and 0 <= c.get("p", -1) <= 3:
@@ -116,15 +122,6 @@ def apply(c):
         e["a"].append({"q": c["sq"], "e": 0})
     elif cmd == "unassign" and e:
         e["a"] = [a for a in e["a"] if a["q"] != c.get("sq")]
-    elif cmd == "pull":
-        sq = c.get("sq")
-        pulls.pop(sq, None)
-
-        def reply():
-            time.sleep(0.6)
-            with lock:
-                pulls[sq] = [{"id": i, "n": NAMES[i]} for i in LOCKS.get(sq, [])]
-        threading.Thread(target=reply, daemon=True).start()
 
 
 class H(BaseHTTPRequestHandler):
@@ -164,10 +161,8 @@ class H(BaseHTTPRequestHandler):
                 state["role"] = q.get("role", [state["role"]])[0]
                 if "note" in q:
                     notice(q["note"][0])
-                if q.get("pulled", ["0"])[0] == "1":
-                    lead["pulled"] += 1
                 if q.get("reset", ["0"])[0] == "1":
-                    board = seed(); pulls.clear()
+                    board = seed(); pulls.clear(); pulls.update(reports())
             return self._json(state)
         if path == "/commands":
             return self._json(commands)

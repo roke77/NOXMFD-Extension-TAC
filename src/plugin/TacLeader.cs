@@ -21,9 +21,6 @@ namespace TacModule
         }
 
         private static List<Task> _tasks = new List<Task>();
-        private static int _pulledSeq;   // bumped per answered PULL: the page's "TAC PULLED YOUR TARGETS" banner
-
-        internal static void NotePulled() => _pulledSeq++;
 
         [Serializable]
         private class Command
@@ -120,20 +117,6 @@ namespace TacModule
             }
         }
 
-        // The reply to the officer's PULL (decision 8): this leader's locked enemies right now.
-        internal static string LocksMessage()
-        {
-            const int MaxLocks = 40;
-            List<TacGame.Lock> locks = TacGame.LockedEnemies();
-            var sb = new StringBuilder("{\"t\":\"locks\",\"l\":[");
-            for (int i = 0; i < locks.Count && i < MaxLocks; i++)
-            {
-                if (i > 0) sb.Append(',');
-                TacJson.AppendTarget(sb, locks[i].Id, TacJson.Clip(locks[i].Name, MaxSentName)).Append('}');
-            }
-            return sb.Append("]}").ToString();
-        }
-
         private static string Id(uint id) => id.ToString(CultureInfo.InvariantCulture);
 
         private const int MaxSentName = 40;
@@ -143,7 +126,7 @@ namespace TacModule
         {
             sb.Append("\"lead\":{\"q\":");
             TacJson.AppendString(sb, SquadronKey());
-            sb.Append(",\"pulled\":").Append(_pulledSeq).Append(",\"l\":[");
+            sb.Append(",\"l\":[");
             for (int i = 0; i < _tasks.Count; i++)
             {
                 Task t = _tasks[i];

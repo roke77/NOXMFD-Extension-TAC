@@ -43,18 +43,23 @@ board, not a mission planner. Full requirements in the ticket.
    takeover; the holder has to release first. Everyone in the faction sees who holds it. Released
    explicitly (**RELEASE**), or automatically when the holder leaves, disconnects, changes
    faction, or joins/creates a squad.
-4. **Board sources:** targets **pulled** from a squadron, targets **reported** by a squad leader,
-   and targets the officer **adds** from their own current selection (picked on NOXMFD's MAP page).
-   Nothing is auto-populated.
+4. **Board sources:** targets the officer **pulls** from what a squad leader has **reported**
+   (decision 8), and targets the officer **adds** from their own current selection (picked on
+   NOXMFD's MAP page). Nothing is auto-populated: only the officer puts a row on the board.
 5. **Messages travel over NOXMFD's existing transport** (the Steam peer relay behind squads,
    `Squadron.cs`), exposed to extensions through new API — no second networking stack.
 6. **Assigning to a squadron sends it to the squad leader.** Redistributing within the squad
    is the leader's call.
 7. **ENGAGED is manual.** The squad leader presses **ENGAGING** on their TAC page. Nothing about a
    leader's locks is shared automatically.
-8. **PULL FROM SQUAD answers automatically.** The leader's extension replies to the officer's
-   explicit request with the leader's current lock list; the officer picks which to add. A one-off
-   answer to a request, not a continuous share.
+8. **REPORT fills the squadron's PULL bucket; the officer pulls from it.** A leader's REPORT
+   sends one of their locked enemies to the officer, where it waits in that squadron's PULL bucket
+   — it does not touch the board. The squadron's **PULL ▼** shows how many reports are waiting;
+   opening it lists them, and the officer adds the ones they want. A report leaves the bucket once
+   its target is on the board (from any squadron's bucket, or ADD FROM MAP) or destroyed, and the
+   bucket goes with its squadron. The leader's locks are never sent without a REPORT press.
+   (Changed after the first two-player test: PULL used to fetch the leader's locks without a
+   press, and REPORT put the target straight on the board, which was too aggressive.)
 9. **A target can have several assignees** (e.g. VIPER and COBRA on one SAM site). The row lists
    them; the target is ENGAGED once any of them has pressed ENGAGING.
 10. **Destroyed targets disappear.** No DESTROYED state (ticket req 8): the row, and every
@@ -94,8 +99,7 @@ board, not a mission planner. Full requirements in the ticket.
 22. **RELEASE needs the same long press.** It clears the whole board and every leader's list, so a
     tap only shows "hold to release".
 23. **The squad leader's page is the canvas's "Squad leader view" board** as drawn: assignments
-    with ENGAGING and ACQUIRE, ACQUIRE ALL, the "TAC pulled your targets" note, and REPORT on each
-    enemy lock.
+    with ENGAGING and ACQUIRE, ACQUIRE ALL, and REPORT on each enemy lock.
 
 ## Phase 1 scope
 
@@ -119,8 +123,9 @@ The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Pa
   tapping them on NOXMFD's MAP page (the same in-game target selection TGT shows). Tap a unit to
   add it, or **ADD ALL**. Units already on the board show as `on board ✓` rather than being added
   twice. No long picker: the MAP is the picker.
-- **PULL ▼** under a squadron: its leader's extension replies with the leader's current locks
-  (decision 8), listed the same way — tap to add, or **ADD ALL**.
+- **PULL ▼** under a squadron, with an amber count of the targets its leader has reported and the
+  officer hasn't added yet (decision 8). Opening it lists them the same way — tap to add, or
+  **ADD ALL**; an added target leaves the list.
 - **Bottom section**, pinned to the bottom of the page: SELECTED (the selected row's name), STATUS,
   **LOCATE** (MAP highlight via the existing `Api.SetSelectedUnit`) and **REMOVE** (drop the row,
   withdrawing every assignment) on one line; the four **PRIORITY** lamp buttons below it.
@@ -140,9 +145,8 @@ The squadron matrix (decision 19), titled **TARGET CONTROL**, in NOXMFD's Lit Pa
   in-game targeting, like TD's AQUIRE — through NOXMFD's `Api.SelectTarget`, which runs MAP's own
   tap-to-select path (detection gate, TGT filters, cockpit marker and beep) rather than this
   extension re-implementing those rules against the game.
-- **REPORT TO TAC**: the leader's current locks; pick one to send it to the officer's board.
-- A brief "TAC pulled your targets" note when a PULL is answered (decision 8), since that reply
-  goes out without a press.
+- **REPORT TO TAC**: the leader's current locks; REPORT on one sends it to the squadron's PULL
+  bucket on the officer's side (decision 8), and the row shows `SENT TO TAC ✓`.
 
 ### Everyone else (squad members, squadless players)
 
@@ -167,11 +171,10 @@ extension and can't be mistaken for NOXMFD's own squad messages. Each is a JSON 
 | `hello` | leader → holder | Answers each `claim`: "I lead a squad and run TAC". Carries nothing: the squad's callsign/flight come from the faction table. |
 | `tasks` | holder → leader | The squadron's **whole** target list (id, name, priority, engaged), sent whenever it changes and again after every `hello`. Assigning, unassigning, reprioritising and removing all reach the leader this way; a lost message or a new leader after a handover heals within one claim. |
 | `engaging` | leader → holder | On/off for one assigned target. |
-| `pull` / `pull-reply` | holder → leader → holder | Request for, and the leader's current lock list. |
-| `report` | leader → holder | One target to add to the board. |
+| `report` | leader → holder | One locked enemy for the squadron's PULL bucket. |
 
 Trust follows the squad protocol's model: `tasks` accepted only from the current holder;
-`hello`/`report`/`engaging`/`pull-reply` accepted only by the holder, only from a faction peer
+`hello`/`report`/`engaging` accepted only by the holder, only from a faction peer
 that leads a squad. `claim` is believed only from a faction-mate outside any squad. The officer checks a `hello` against
 `Api.GetFactionPilots`: the sender must be the leader of the squad (callsign + flight) its own
 presence beat announces, which NOXMFD already broadcasts faction-wide.
@@ -179,7 +182,7 @@ presence beat announces, which NOXMFD already broadcasts faction-wide.
 ### Startup and roster
 
 How the officer learns which squadrons exist (the ASSIGN ▼ / PULL FROM SQUAD ▼ lists). The target
-board itself still starts empty and fills only from ADD, PULL and REPORT (decision 4).
+board itself still starts empty and fills only from ADD and PULL (decision 4).
 
 1. **A player takes TAC.** Their extension sends `claim` (with the claim time) to every faction-mate
    running NOXMFD.

@@ -14,7 +14,7 @@ namespace TacModule
     {
         private const int PriNormal = 1;
         private const int PriMax = 3;           // LOW, NORMAL, HIGH, CRITICAL
-        private const int MaxNameLength = 64;
+        internal const int MaxNameLength = 64;
         private const int MaxSquadronLength = 32;
 
         private sealed class Assignee
@@ -153,6 +153,8 @@ namespace TacModule
         }
 
         private static Entry? Find(uint id) => _board.Find(e => e.Id == id);
+
+        internal static bool Has(uint id) => Find(id) != null;
 
         // The board's part of the slice TacSession publishes; "sq" is the squadron roster (the
         // matrix columns).

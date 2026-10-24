@@ -7,7 +7,7 @@
 Adds a **TAC** page under [NOXMFD](https://github.com/roke77/NOXMFD)'s EXT nav — a
 target-coordination board for one player per faction acting as the TAC officer (mission control),
 working with the leaders of the faction's squads. The officer collects targets onto a shared
-board (ADD from their MAP selection, PULL FROM SQUAD, or a leader's REPORT), sets each one's
+board (ADD from their MAP selection, or PULL what a squad leader has REPORTed), sets each one's
 priority, and assigns it to squadrons; squad leaders see their assignments, ACQUIRE them and mark
 them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
 
@@ -35,8 +35,10 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
   gated to the role's holder, and the page's slice (role + board).
 - `src/plugin/TacRoster.cs` — the officer's squadron roster: one entry per squadron whose leader
   runs TAC, keyed by callsign + flight, with handover, rename and silence. Pure.
-- `src/plugin/TacLeader.cs` — a squad leader's side: the assignments TAC sent, ENGAGING, ACQUIRE,
-  REPORT, and the reply to a PULL.
+- `src/plugin/TacLeader.cs` — a squad leader's side: the assignments TAC sent, ENGAGING, ACQUIRE
+  and REPORT.
+- `src/plugin/TacReports.cs` — the officer's PULL buckets: each squadron's reported targets, waiting
+  until the officer adds them. Pure.
 - `src/plugin/TacGame.cs` — game reads the API doesn't cover: the pilot's locked enemies, whether a
   target is gone, whether a reported unit is an enemy.
 - `src/plugin/TacBoard.cs` — the officer's in-memory board and its commands (add, remove, priority,
@@ -48,8 +50,8 @@ Built entirely through NOXMFD's public extension API — see NOXMFD's
   APPLY FOR TAC). Reads names, OBSERVED/STALE and the pilot's own selection from NOXMFD's telemetry.
 - `src/web/tac-board.js` — pure board helpers (sort, status, cell state, ADD list), checked by
   `node src/web/tac-board.test.js`.
-- `tools/preview.py` — browser preview with a mock board, 6 squadrons, mock squad leaders that
-  answer PULL, and every role state, no game needed (`python tools/preview.py [port]`).
+- `tools/preview.py` — browser preview with a mock board, 6 squadrons, reports waiting in two
+  squadrons' PULL buckets, and every role state, no game needed (`python tools/preview.py [port]`).
 - `tools/tests/` — xUnit tests for the pure C# (`dotnet test tools/tests`), compiled straight from
   `src/plugin/` like NOXMFD's own `tools/tests`.
 - `docs/` — planning doc (design decisions, phase-1 scope, message protocol, the NOXMFD API it

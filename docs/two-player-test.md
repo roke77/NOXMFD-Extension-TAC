@@ -24,7 +24,7 @@ Grep them for:
 - `[TAC]` — role changes (`TAC holder: X -> Y`), squadrons joining/leaving the matrix, refusals
   with their reason (APPLY refused, a `hello` the faction table doesn't back, a sender NOXMFD
   doesn't list yet).
-- `[TAC diag` — time-stamped message traffic: tasks sent/received, ENGAGING, PULL, REPORT, ACQUIRE.
+- `[TAC diag` — time-stamped message traffic: tasks sent/received, ENGAGING, REPORT (and where it went), ACQUIRE.
 - `[NOXMFD ext-link` — the first TAC message each way per player, and `[NOXMFD] message for
   extension 'tac' … dropped: not installed here` when the other side lacks TAC.
 - `[NOXMFD squad-link` — the Steam transport underneath (sessions, failed sends).
@@ -44,8 +44,8 @@ The first line from TAC, `TAC <version> loaded`, confirms the right build is ins
 | 7 | B presses ENGAGING on it | B's button lights; A's cell turns green ENGD within a second. |
 | 8 | A taps the ENGD cell once, then holds it | A tap only shows the "hold to withdraw" hint; the hold withdraws it, and it leaves B's list. |
 | 9 | B presses ACQUIRE on an assigned target, then ACQUIRE ALL | The targets become selected in B's own targeting, with the cockpit marker and beep. |
-| 10 | B locks an enemy A doesn't have, then REPORT on it | It lands on A's board at NORMAL, unassigned; A's status line says `VIPER 1 reported …`. |
-| 11 | A presses PULL ▼ under `VIPER 1` | A's panel lists B's locked enemies (after "Waiting…"); B sees TAC PULLED YOUR TARGETS. |
+| 10 | B locks an enemy A doesn't have, then REPORT on it | A's board doesn't change; `VIPER 1`'s PULL ▼ shows an amber `1`. B's row reads `SENT TO TAC ✓`. |
+| 11 | A presses PULL ▼ under `VIPER 1`, then ADD on the reported target | The panel lists what B reported; the added target lands at NORMAL, unassigned, and leaves the list (the count goes). |
 | 12 | Destroy an assigned target | Within ~1 s it disappears from A's board and B's list. |
 | 13 | B disbands the squad | Within ~10 s the `VIPER 1` column leaves A's matrix and its assignments are withdrawn (status-line note). |
 | 14 | A taps RELEASE once, then holds it | A tap only shows "hold to release"; the hold frees the role on both pages and empties A's board. |

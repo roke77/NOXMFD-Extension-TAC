@@ -162,6 +162,9 @@ html, body {
   color: var(--no-green-dim); font-size: clamp(8px, 1.3vmin, 12px); letter-spacing: 0.15em; cursor: pointer;
 }
 .tac-pull:focus-visible { outline: 2px solid var(--no-amber); outline-offset: 2px; }
+/* Reports waiting in this squadron's PULL bucket. */
+.tac-pull.has { border-color: var(--no-amber); color: var(--no-amber); }
+.tac-pull-n { margin-left: 6px; padding: 0 5px; border-radius: 3px; background: var(--no-amber); color: var(--no-bg); letter-spacing: 0; }
 .tac-nosq {
   flex: 1 1 auto; align-self: center; padding: 8px 12px;
   font-size: clamp(9px, 1.4vmin, 12px); letter-spacing: 0.15em; color: var(--no-text-faint);
@@ -320,18 +323,6 @@ html, body {
 }
 .tac-lead-row .tac-btn { height: clamp(40px, 6.6vmin, 52px); }
 .tac-lead-empty, .tac-report-empty { padding: 28px 12px; text-align: center; font-size: clamp(10px, 1.6vmin, 14px); letter-spacing: 0.12em; color: var(--no-green-dim); }
-
-.tac-pulled {
-  display: flex; align-items: center; gap: 12px;
-  min-height: 48px; padding: 0 6px 0 14px;
-  border: 1px solid var(--no-amber); border-radius: 4px;
-  background: rgba(var(--no-amber-rgb), 0.06);
-}
-.tac-pulled[hidden] { display: none; }
-.tac-pulled-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--no-amber); }
-.tac-pulled-text { flex: 1 1 auto; font-size: clamp(10px, 1.8vmin, 15px); letter-spacing: 0.12em; color: var(--no-amber); }
-.tac-pulled-sub { font-size: clamp(9px, 1.4vmin, 12px); color: var(--no-control-text-off); }
-.tac-pulled-ok { border: 0; height: 36px; }
 
 .tac-report { flex: 1 1 45%; min-height: 0; display: flex; flex-direction: column; }
 .tac-report-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--no-green-dark); }

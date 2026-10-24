@@ -35,11 +35,10 @@ const leadCountEl = $('lead-count');
 const leadFlashEl = $('lead-flash');
 const leadListEl = $('lead-list');
 const reportListEl = $('report-list');
-const pulledEl = $('pulled');
 
 let board = [];            // the slice's board, sorted for display
 let squadrons = [];        // the slice's roster: callsign + flight of each leader running TAC
-let pulls = {};            // squadron -> its leader's reply to PULL ([{id, n}]), once messaging exists
+let pulls = {};            // squadron -> the targets its leader REPORTed, waiting for a PULL ([{id, n}])
 let contacts = [];         // the frame's contacts
 let contactsById = {};
 let selectedId = 0;
@@ -106,9 +105,10 @@ function matrixHtml(sel) {
     '<span class="tac-colh">OBS</span><span class="tac-colh">PRI</span></div>';
   if (squadrons.length) {
     for (const sq of squadrons) {
+      const n = (pulls[sq] || []).length;
       html += '<span class="tac-sqh"><span class="tac-sqname">' + escapeHtml(sq) + '</span>' +
-        '<button type="button" class="tac-pull" data-sq="' + escapeHtml(sq) + '" aria-label="Pull ' + escapeHtml(sq) +
-        ' targets">PULL ▼</button></span>';
+        '<button type="button" class="tac-pull' + (n ? ' has' : '') + '" data-sq="' + escapeHtml(sq) + '" aria-label="Pull ' + escapeHtml(sq) +
+        ' targets (' + n + ' reported)">PULL ▼' + (n ? '<span class="tac-pull-n">' + n + '</span>' : '') + '</button></span>';
     }
   } else {
     html += '<span class="tac-nosq">NO SQUAD LEADERS RUNNING TAC YET</span>';
@@ -192,12 +192,11 @@ function renderPop() {
     popSubEl.textContent = 'New targets start at NORMAL';
     note = 'No enemy units selected — tap enemies on MAP first';
   } else {
-    const reply = pulls[pop.sq];
-    const onBoard = new Set(board.map((e) => e.id));
-    items = (reply || []).map((t) => ({ id: t.id, n: t.n, on: onBoard.has(t.id) }));
-    popTitleEl.textContent = pop.sq + '’S TARGETS';
-    popSubEl.textContent = 'Enemy locks at the moment of the pull';
-    note = reply ? 'No enemy locks' : 'Waiting for ' + pop.sq + '’s reply…';
+    // A pulled report leaves the bucket once it is on the board (TacReports.cs).
+    items = pulls[pop.sq] || [];
+    popTitleEl.textContent = pop.sq + ' REPORTED (' + items.length + ')';
+    popSubEl.textContent = 'Pulled targets start at NORMAL';
+    note = 'Nothing reported yet — ' + pop.sq + '’s leader sends targets with REPORT';
   }
   popFresh = items.filter((it) => !it.on);
   popAllBtn.hidden = !popFresh.length;
@@ -259,7 +258,6 @@ matrixEl.addEventListener('click', (e) => {
   }
   const pull = e.target.closest('.tac-pull');
   if (pull) {
-    postCommand({ cmd: 'pull', sq: pull.dataset.sq });
     openPop({ kind: 'pull', sq: pull.dataset.sq });
     return;
   }
@@ -325,8 +323,7 @@ releaseBtn.addEventListener('click', () => {
 });
 
 // ── Squad leader ───────────────────────────────────────────────────────────────────────────────
-let lead = { q: '', pulled: 0, l: [] };   // the slice's "lead" (TacLeader.cs)
-let dismissedPulled = -1;                 // the pull count the OK button last acknowledged
+let lead = { q: '', l: [] };              // the slice's "lead" (TacLeader.cs)
 const reported = new Set();               // ids reported this session, shown as SENT TO TAC
 let lastLeadHtml = '';
 let lastLeadCount = '';
@@ -354,7 +351,6 @@ function renderLead() {
     leadListEl.innerHTML = html;
     lastLeadHtml = html;
   }
-  pulledEl.hidden = !(lead.pulled > dismissedPulled);
 
   // REPORT: this leader's own locked enemies, from telemetry like ADD FROM MAP (decision 17).
   const locks = contacts.filter((c) => c.tg && c.f === 2);
@@ -382,9 +378,8 @@ reportListEl.addEventListener('click', (e) => {
   if (!b) return;
   postCommand({ cmd: 'report', id: Number(b.dataset.id) });
   reported.add(Number(b.dataset.id));
-  flash('REPORTED — ' + b.dataset.n + ' is on its way to TAC');
+  flash('REPORTED — ' + b.dataset.n + ' is waiting in TAC’s PULL');
 });
-$('pulled-ok').addEventListener('click', () => { dismissedPulled = lead.pulled; pulledEl.hidden = true; });
 
 locateBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'locate', id: sel.id }); });
 removeBtn.addEventListener('click', () => { const sel = selected(); if (sel) postCommand({ cmd: 'remove', id: sel.id }); });
@@ -416,8 +411,7 @@ function renderFrame(d) {
   pulls = slice.pull || {};
   role = slice.r || { mine: 0, h: '', can: 0, sr: 0 };
   const ld = slice.lead || {};
-  lead = { q: ld.q || '', pulled: ld.pulled || 0, l: Array.isArray(ld.l) ? ld.l : [] };
-  if (dismissedPulled === -1) dismissedPulled = lead.pulled;   // a page opened later shows only new pulls
+  lead = { q: ld.q || '', l: Array.isArray(ld.l) ? ld.l : [] };
   renderRole();
   if (!role.mine) closePop();
   // Each notice once: the page may have been opened long after it was raised, so the first frame

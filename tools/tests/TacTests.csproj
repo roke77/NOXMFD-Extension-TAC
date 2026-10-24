@@ -24,6 +24,7 @@
     <Compile Include="..\..\src\plugin\TacRole.cs" Link="Source\TacRole.cs" />
     <Compile Include="..\..\src\plugin\TacJson.cs" Link="Source\TacJson.cs" />
     <Compile Include="..\..\src\plugin\TacRoster.cs" Link="Source\TacRoster.cs" />
+    <Compile Include="..\..\src\plugin\TacReports.cs" Link="Source\TacReports.cs" />
   </ItemGroup>
 
 </Project>

@@ -18,15 +18,14 @@ namespace TacModule
     //   hello             leader -> holder        answers each claim: "I lead a squad and run TAC"
     //   tasks             holder -> leader        the squadron's whole target list, on change and per hello
     //   engaging          leader -> holder        ENGAGING on/off for one assigned target
-    //   pull / locks      holder -> leader -> holder   PULL: the leader's locked enemies right now
-    //   report            leader -> holder        REPORT: one of the leader's locked enemies
+    //   report            leader -> holder        REPORT: one of the leader's locked enemies, into its PULL bucket
     internal static class TacSession
     {
         private const float TickSeconds = 0.25f;
         private const float GoneCheckSeconds = 1f;
 
-        // Officer: the latest PULL reply, keyed by its squadron.
-        private static readonly Dictionary<string, TacLeader.Task[]> _pulls = new Dictionary<string, TacLeader.Task[]>(StringComparer.Ordinal);
+        // Officer: each squadron's reported targets, waiting for a PULL.
+        private static readonly TacReports _reports = new TacReports();
         private static float _nextGoneCheck;
 
         private static readonly TacRole _role = new TacRole();
@@ -95,10 +94,11 @@ namespace TacModule
                 foreach (string sq in _dropped) DropSquadron(sq);
                 if (now >= _nextGoneCheck)
                 {
-                    // Destroyed targets leave the board and every leader's list (decision 10).
+                    // Destroyed targets leave the board, every leader's list and the PULL buckets (decision 10).
                     _nextGoneCheck = now + GoneCheckSeconds;
                     foreach (uint id in TacBoard.Ids())
                         if (TacGame.IsGone(id) && TacBoard.Remove(id)) Info($"target {id} destroyed — removed from the board");
+                    _reports.Prune(TacGame.IsGone);
                 }
                 SyncTasks();   // also carries any removal above to the leaders
             }
@@ -133,12 +133,6 @@ namespace TacModule
                     if (!_role.Release(self)) return;
                     Broadcast("release");
                     Info("you released TAC");
-                    break;
-                case "pull":
-                    if (!_role.IsMine(self) || !_roster.TryLeader(c.sq, out ulong leader)) return;
-                    _pulls.Remove(c.sq);   // the page shows "waiting" until the reply lands
-                    bool sent = Api.SendMessage(Plugin.ExtId, leader, MessageJson("pull"));
-                    Diag($"PULL -> {c.sq} ({Who(leader)}): {(sent ? "sent" : "send refused")}");
                     break;
                 default:
                     if (TacLeader.IsLeaderCommand(c.cmd))
@@ -249,42 +243,19 @@ namespace TacModule
                     if (squadron != null && TacBoard.SetEngaged(m.id, squadron, m.on)) OnBoardChanged();
                     break;
                 }
-                case "pull":
-                {
-                    // Answered without a press (decision 8), with a note so the leader knows.
-                    if (_role.Holder != from || _role.IsMine(self) || !TacLeader.IsLeader()) return;
-                    string locks = TacLeader.LocksMessage();
-                    bool sent = Api.SendMessage(Plugin.ExtId, from, locks);
-                    TacLeader.NotePulled();
-                    Diag($"PULL from {Who(from)} answered: {TacGame.LockedEnemies().Count} locked enemy(ies), {(sent ? "sent" : "send refused")}");
-                    break;
-                }
-                case "locks":
-                {
-                    if (!_role.IsMine(self)) return;
-                    string? squadron = _roster.KeyOf(from);
-                    Diag($"PULL reply from {Who(from)} ({squadron ?? "not on the roster"}): {m.l?.Length ?? 0} target(s)");
-                    if (squadron == null) return;
-                    // Only the latest reply is kept: the slice rides every telemetry frame, and the
-                    // page shows one PULL at a time (each PULL press asks afresh).
-                    _pulls.Clear();
-                    _pulls[squadron] = m.l ?? Array.Empty<TacLeader.Task>();
-                    break;
-                }
                 case "report":
                 {
                     // From a squadron on the roster, and an enemy as this officer's own game sees it.
+                    // It waits in that squadron's PULL bucket; only the officer puts it on the board.
                     if (!_role.IsMine(self)) return;
                     string? squadron = _roster.KeyOf(from);
                     bool enemy = TacGame.IsEnemy(m.id);
-                    Diag($"REPORT of '{m.n}' ({m.id}) from {Who(from)}: " +
-                         (squadron == null ? "ignored, not on the roster" : !enemy ? "ignored, not an enemy (or gone) here" : "accepted"));
-                    if (squadron == null || !enemy) return;
-                    if (TacBoard.Add(m.id, m.n))
-                    {
-                        Note(squadron + " reported " + (m.n.Length > 0 ? m.n : "a target"));
-                        OnBoardChanged();
-                    }
+                    string verdict = squadron == null ? "ignored, not on the roster"
+                        : !enemy ? "ignored, not an enemy (or gone) here"
+                        : TacBoard.Has(m.id) ? "ignored, already on the board"
+                        : _reports.Add(squadron, m.id, TacJson.Clip(m.n, TacBoard.MaxNameLength)) ? $"waiting in {squadron}'s PULL ({_reports.Count(squadron)})"
+                        : "already waiting in its PULL";
+                    Diag($"REPORT of '{m.n}' ({m.id}) from {Who(from)}: {verdict}");
                     break;
                 }
             }
@@ -303,6 +274,7 @@ namespace TacModule
 
         internal static void OnBoardChanged()
         {
+            _reports.Prune(TacBoard.Has);   // a pulled (or otherwise added) report has done its job
             SyncTasks();
             Publish();
         }
@@ -320,7 +292,7 @@ namespace TacModule
                 _roster.Clear();
                 _sentTasks.Clear();
                 _loggedTasks.Clear();
-                _pulls.Clear();
+                _reports.Clear();
             }
             TacLeader.Clear();
             _lastHolder = _role.Holder;
@@ -354,6 +326,7 @@ namespace TacModule
         {
             _sentTasks.Remove(squadron);
             _loggedTasks.Remove(squadron);
+            _reports.RemoveSquadron(squadron);
             bool withdrew = TacBoard.RemoveSquadron(squadron);
             if (withdrew) Note(squadron + " left — its assignments were withdrawn");
             Info($"squadron {squadron} left the matrix (renamed, disbanded or silent {TacRoster.SilentSeconds:0} s)" +
@@ -381,25 +354,9 @@ namespace TacModule
               .Append("},\"note\":{\"s\":").Append(_noteSeq).Append(",\"t\":"); TacJson.AppendString(sb, _note);
             sb.Append("},");
             TacBoard.AppendJson(sb, mine ? _roster.Keys() : new List<string>());
-            sb.Append(",\"pull\":{");
-            bool first = true;
-            if (mine)
-            {
-                foreach (var kv in _pulls)
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    TacJson.AppendString(sb, kv.Key);
-                    sb.Append(":[");
-                    for (int i = 0; i < kv.Value.Length; i++)
-                    {
-                        if (i > 0) sb.Append(',');
-                        TacJson.AppendTarget(sb, kv.Value[i].id, kv.Value[i].n).Append('}');
-                    }
-                    sb.Append(']');
-                }
-            }
-            sb.Append("},");
+            sb.Append(",\"pull\":");
+            _reports.AppendJson(sb);   // emptied whenever the role leaves this client
+            sb.Append(',');
             TacLeader.AppendJson(sb);
             sb.Append('}');
 
