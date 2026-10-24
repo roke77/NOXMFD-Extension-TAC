@@ -1,71 +1,127 @@
-# NOXMFD Extension: TAC Module
+# NOXMFD Extension: TAC
 
 [![NOXMFD](https://img.shields.io/badge/Requires-NOXMFD%200.77.0%2B-blue)](https://github.com/roke77/NOXMFD)
-![Version](https://img.shields.io/badge/Version-0.1.0-green)
+[![Version](https://img.shields.io/badge/Version-0.1.0-green)](https://github.com/roke77/NOXMFD-Extension-TAC/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Adds a **TAC** page under [NOXMFD](https://github.com/roke77/NOXMFD)'s EXT nav — a
-target-coordination board for players acting as TAC officers (mission control), each working
-with the squad leaders who link to them. An officer collects targets onto a shared
-board (ADD from their MAP selection, or PULL what a squad leader has REPORTed), sets each one's
-priority, and assigns it to the linked squadrons; squad leaders see their assignments, ACQUIRE them and mark
-them ENGAGING. Every target shows OBSERVED/STALE and UNASSIGNED/ASSIGNED/ENGAGED.
+Adds a **TAC** (Tactical Command) page to [NOXMFD](https://github.com/roke77/NOXMFD)'s browser MFD
+for coordinating targets in multiplayer. A TAC officer collects targets on a board, sets their
+priority and assigns them to squadrons; squad leaders see their assignments, select them in their
+own targeting, mark the ones they're engaging, and report new targets back.
 
-**Status: first release (0.1.0).** Built on NOXMFD 0.77.0's extension API 8 (faction roster, own
-squad, messaging, target selection, LOCATE ON MAP). Phase 1: any number of TAC officers,
-squad leaders linking to one, the officer's squadron matrix (ADD FROM MAP, PULL of what leaders
-REPORT, assignments, priority, LOCATE, REMOVE), the squad leader's page (ENGAGING, ACQUIRE, REPORT)
-and destroyed-target removal, tested in two-player matches. The design, build order and phase 2
-ideas are in [`docs/tac-plan.md`](docs/tac-plan.md).
+Built entirely through NOXMFD's public extension API (see
+[`EXTENSIONS.md`](https://github.com/roke77/NOXMFD/blob/main/EXTENSIONS.md)), so it doesn't modify
+NOXMFD. TAC is an experiment: if it proves useful, it may later become a native NOXMFD feature.
 
-This extension is an experiment: try TAC with real players, gather feedback and refine it. If it
-proves useful, TAC may later become a native NOXMFD feature.
+> [!IMPORTANT]
+> **Install order:** BepInEx 5 → [NOXMFD](https://github.com/roke77/NOXMFD) (≥ 0.77.0) →
+> **`NOXMFD.TacModule.dll`**. Every TAC officer and squad leader needs both installed.
 
-Built entirely through NOXMFD's public extension API — see NOXMFD's
-[`EXTENSIONS.md`](https://github.com/roke77/NOXMFD/blob/main/EXTENSIONS.md). This repo does
-**not** modify NOXMFD's own source.
+---
+
+## Table of contents
+
+- [Features](#features)
+- [Using the page](#using-the-page)
+- [Installing](#installing)
+- [Links](#links)
+- [What's here](#whats-here)
+- [Building](#building)
+- [Credits](#credits)
+
+---
+
+## Features
+
+**For the TAC officer:**
+
+- **Any player outside a squad can become an officer** with APPLY FOR TAC, and a faction can have
+  several. RELEASE (a long press) gives the role up.
+- **The squadron matrix:** one row per target, one column per squadron linked to you. Tap a cell to
+  assign the target to that squadron (teal ASGN) or withdraw it; a cell turns green ENGD when the
+  squadron is attacking it, and then needs a long press to withdraw.
+- Each target shows OBSERVED or STALE from your faction's picture, and a priority from LOW to
+  CRITICAL that you set at the bottom. **LOCATE** rings the target on MAP and centers MAP on it;
+  **REMOVE** takes it off the board.
+- **ADD FROM MAP** lists the enemies you've selected on NOXMFD's MAP page.
+- **PULL** under a squadron lists the targets its leader has reported. The amber count shows how
+  many are waiting; you pick which go on the board.
+- Destroyed targets leave the board and every squadron's list on their own.
+
+![The officer's squadron matrix](docs/images/tac-officer.png)
+
+<p><img src="docs/images/tac-pull.png" alt="A squadron's PULL: the targets its leader reported" width="49%"> <img src="docs/images/tac-add.png" alt="ADD FROM MAP: the enemies selected on MAP" width="49%"></p>
+
+**For squad leaders:**
+
+- **Link to one officer** from the list of officers in your faction. You get only that officer's
+  assignments; UNLINK (a long press) or link to another officer to switch.
+- **Your squadron's assignments**, by priority. **ENGAGING** tells the officer you're attacking a
+  target; **ACQUIRE** and **ACQUIRE ALL** select them in your own targeting, like a tap on MAP.
+- **REPORT** sends one of your locked enemies to the officer's PULL for your squadron. Nothing about
+  your locks reaches TAC unless you report it.
+
+<p><img src="docs/images/tac-link.png" alt="A squad leader picking an officer to link to" width="49%"> <img src="docs/images/tac-leader.png" alt="A linked squad leader's assignments and REPORT list" width="49%"></p>
+
+Squad members and other players see the faction's officers. The page needs a mission running; with
+no connection it shows NO SIGNAL.
+
+---
+
+## Using the page
+
+1. **Officer:** stay out of any squad, open **EXT → TAC** in NOXMFD and press **APPLY FOR TAC**.
+2. **Squad leaders:** open **EXT → TAC** and press **LINK** next to the officer. A column for your
+   squadron appears on the officer's matrix.
+3. **Officer:** select enemies on MAP and **ADD FROM MAP**, or open a squadron's **PULL** to add
+   what its leader reported. Tap cells to assign, and set each target's priority.
+4. **Squad leaders:** **ACQUIRE ALL** to select your assignments, press **ENGAGING** on the one
+   you're attacking, and **REPORT** new targets you've locked.
+
+---
+
+## Installing
+
+1. Install BepInEx 5 and [NOXMFD](https://github.com/roke77/NOXMFD) 0.77.0 or later.
+2. Download `NOXMFD.TacModule_<version>.zip` from the
+   [latest release](https://github.com/roke77/NOXMFD-Extension-TAC/releases/latest) and extract it
+   into `BepInEx/plugins/`.
+3. Launch the game. A **TAC** entry appears under NOXMFD's EXT nav.
+
+---
+
+## Links
+
+- [Releases and changelog](https://github.com/roke77/NOXMFD-Extension-TAC/releases)
+- [NOXMFD](https://github.com/roke77/NOXMFD): the browser MFD this page runs in
+- [Design and roadmap](docs/tac-plan.md)
+- [Two-player test](docs/two-player-test.md): the match checklist a release passes
+
+---
 
 ## What's here
 
-- `src/plugin/Plugin.cs` — checks NOXMFD has extension messaging (API 8), registers the **TAC** EXT
-  page and message handler, and spawns the persistent `TAC_Worker` that ticks the session.
-- `src/plugin/TacRole.cs` — the faction's officers and this player's standing: APPLY/RELEASE,
-  losing the role on joining a squad or leaving the faction, silent officers dropping out, and a
-  squad leader's link to one officer (pending until confirmed). Pure.
-- `src/plugin/TacSession.cs` — the live glue: claim/release messages to faction-mates, LINK/UNLINK,
-  the board gated to an officer, and the page's slice (role + board).
-- `src/plugin/TacRoster.cs` — the officer's squadron roster: one entry per squadron whose leader
-  runs TAC, keyed by callsign + flight, with handover, rename and silence. Pure.
-- `src/plugin/TacLeader.cs` — a squad leader's side: the assignments TAC sent, ENGAGING, ACQUIRE
-  and REPORT.
-- `src/plugin/TacReports.cs` — the officer's PULL buckets: each squadron's reported targets, waiting
-  until the officer adds them. Pure.
-- `src/plugin/TacGame.cs` — game reads the API doesn't cover: the pilot's locked enemies, whether a
-  target is gone, whether a reported unit is an enemy.
-- `src/plugin/TacBoard.cs` — the officer's in-memory board and its commands (add, remove, priority,
-  assign, unassign, locate), and each squadron's task list.
-- `src/plugin/TacJson.cs` — JSON string escaping for the slice and messages. Pure.
-- `src/plugin/TacPageAssets.cs` — embedded-resource lookup for `src/web/`'s HTML/CSS/JS.
-- `src/web/tac.{html,css,js}` — the page, in NOXMFD's Lit Panel style: the officer's squadron
-  matrix, the squad leader's assignments and REPORT list, and everyone else's role view (the
-  officers, LINK for a squad leader, APPLY FOR TAC). Reads names, OBSERVED/STALE and the pilot's own selection from NOXMFD's telemetry.
-- `src/web/tac-board.js` — pure board helpers (sort, status, cell state, ADD list), checked by
+- `src/plugin/Plugin.cs` registers the **TAC** EXT page and message handler, and starts the
+  worker that ticks the session.
+- `src/plugin/TacSession.cs` carries the messages between officers and squad leaders and publishes
+  the page's state.
+- `src/plugin/TacRole.cs` (officers and links), `TacRoster.cs` (an officer's squadrons) and
+  `TacReports.cs` (the PULL buckets) hold the pure logic, tested in `tools/tests/`.
+- `src/plugin/TacBoard.cs` is the officer's board; `TacLeader.cs` a squad leader's side;
+  `TacGame.cs` the game reads (locks, destroyed units, enemies).
+- `src/plugin/TacPageAssets.cs` serves the embedded `src/web/` files.
+- `src/web/tac.{html,css,js}` is the page; `tac-board.js` holds its pure helpers, checked by
   `node src/web/tac-board.test.js`.
-- `tools/preview.py` — browser preview with a mock board, 6 squadrons, reports waiting in two
-  squadrons' PULL buckets, and every role state, no game needed (`python tools/preview.py [port]`).
-- `tools/tests/` — xUnit tests for the pure C# (`dotnet test tools/tests`), compiled straight from
-  `src/plugin/` like NOXMFD's own `tools/tests`.
-- `docs/` — planning doc (design decisions, phase-1 scope, message protocol, the NOXMFD API it
-  needs) — see [`tac-plan.md`](docs/tac-plan.md) — and the two-player match test,
-  [`two-player-test.md`](docs/two-player-test.md).
-- `lib/NOXMFD.dll` — compile-time reference only, not shipped to players (NOXMFD is already
-  installed as its own plugin; `Private=false` in the `.csproj` keeps this project from bundling a
-  second copy). Committed to this repo since it's this project's own dependency.
+- `tools/preview.py` previews the page in a browser with mock data; `tools/shot.py` retakes the
+  screenshots above from it.
+- `lib/NOXMFD.dll` is a compile-time reference only, not shipped to players.
+
+---
 
 ## Building
 
-Requires a local Nuclear Option install with BepInEx 5 and NOXMFD already installed. Create a
-gitignored `GameDir.props` next to the `.csproj` if your install isn't the default Steam path:
+Requires a local Nuclear Option install with BepInEx 5 and NOXMFD. If the game isn't at the default
+Steam path, create a gitignored `GameDir.props` next to the `.csproj`:
 
 ```xml
 <Project><PropertyGroup>
@@ -73,18 +129,21 @@ gitignored `GameDir.props` next to the `.csproj` if your install isn't the defau
 </PropertyGroup></Project>
 ```
 
-Then:
-
 ```bash
 dotnet build TacModule.csproj -c Release
 ```
 
-The build's `DeployToGame` target copies the built DLL straight into
-`$(GameDir)\BepInEx\plugins\` for you.
+The build copies `NOXMFD.TacModule.dll` into `$(GameDir)\BepInEx\plugins\`. Run the tests with
+`dotnet test tools/tests`.
 
-## Installing
+To check the page without the game, run `python tools/preview.py 8793` and open
+`http://localhost:8793/`. It reads NOXMFD's shared assets from a sibling `../NOXMFD` checkout (or a
+path given as the second argument); `/scenario?role=<role>&s=<state>` switches the mock, as listed
+in the script's header. With the preview running, `python tools/shot.py 8793` retakes the README
+screenshots.
 
-1. Install BepInEx 5 and [NOXMFD](https://github.com/roke77/NOXMFD) 0.77.0 or later.
-2. Drop `NOXMFD.TacModule.dll`, from the [latest release](https://github.com/roke77/NOXMFD-Extension-TAC/releases/latest)'s
-   zip, into `BepInEx/plugins/`.
-3. Launch the game — a **TAC** entry appears under NOXMFD's EXT nav.
+---
+
+## Credits
+
+- [NOXMFD](https://github.com/roke77/NOXMFD) by roke77.
